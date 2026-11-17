@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TypeSub</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">T</div>
+        <div><strong>TypeSub</strong><span>直播字幕工作台</span></div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="studio"><span class="nav-icon">◈</span>字幕工作台</button>
+        <button class="nav-item" data-view="components"><span class="nav-icon">⬡</span>组件管理</button>
+        <button class="nav-item" data-view="presets"><span class="nav-icon">≡</span>预设方案</button>
+        <button class="nav-item" data-view="diagnostics"><span class="nav-icon">⌁</span>诊断与日志</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="health-dot"></div>
+        <div><b id="side-status">系统就绪</b><span id="side-detail">等待识别</span></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">LIVE CAPTION CONSOLE</div>
+          <h1 id="page-title">字幕工作台</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="permission-chip" id="permission-chip"><span class="status-dot"></span>普通权限运行</span>
+          <button class="icon-btn" id="open-logs" title="打开日志目录">⌁</button>
+          <button class="secondary-btn admin-action" data-request-admin title="请求管理员权限">请求管理员权限</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-studio">
+        <div class="studio-grid">
+          <div class="preview-column">
+            <div class="section-heading">
+              <div><span class="kicker">OUTPUT PREVIEW</span><h2>实时预览</h2></div>
+              <div class="preview-tools"><span class="live-pill"><span></span>预览</span><button class="ghost-btn" id="clear-caption">清屏</button></div>
+            </div>
+            <div class="preview-frame">
+              <div class="preview-meta"><span>1280 × 720</span><span id="fps-label">30 FPS</span></div>
+              <div class="safe-area">
+                <div class="caption-stage" id="caption-stage">
+                  <div class="caption-lines" id="caption-lines">
+                    <div class="caption-glyphs" id="caption-glyphs"></div>
+                    <span class="caption-cursor" id="caption-cursor"></span>
+                  </div>
+                </div>
+                <div class="empty-hint" id="empty-hint">开始识别或点击「试一试」</div>
+              </div>
+              <div class="preview-bottom"><span><i class="signal"></i>字幕画布预览</span><span id="preview-state">待机</span></div>
+            </div>
+            <div class="quick-actions">
+              <button class="primary-btn" id="toggle-recognition"><span class="play-icon">▶</span><span>开始识别</span></button>
+              <button class="secondary-btn" id="try-demo"><span>✦</span>试一试</button>
+              <button class="secondary-btn" id="toggle-canvas"><span>◌</span>字幕画布</button>
+            </div>
+            <div class="manual-test">
+              <label for="test-caption">测试字幕</label>
+              <div class="manual-test-row">
+                <input id="test-caption" type="text" maxlength="120" placeholder="在这里输入文字，直播软件中实时显示" autocomplete="off">
+                <button class="secondary-btn" id="replay-caption" type="button">重播</button>
+              </div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><span>麦克风电平</span><strong id="level-value">--</strong><div class="level-bar"><i id="level-bar"></i></div></div>
+              <div class="metric"><span>识别延迟</span><strong id="latency-value">-- ms</strong><em>目标 ≤ 600ms</em></div>
+              <div class="metric"><span>虚拟摄像头</span><strong id="camera-value">检测中</strong><em id="camera-detail">组件状态</em></div>
+            </div>
+          </div>
+
+          <div class="settings-column">
+            <div class="panel-header"><div><span class="kicker">CONTROL PANEL</span><h2>字幕参数</h2></div><button class="reset-btn" id="reset-settings">恢复默认</button></div>
+            <div class="settings-tabs" role="tablist" aria-label="字幕参数分类">
+              <button class="selected" data-settings-tab="input" role="tab" aria-selected="true">输入</button>
+              <button data-settings-tab="layout" role="tab" aria-selected="false">排版</button>
+              <button data-settings-tab="style" role="tab" aria-selected="false">样式</button>
+              <button data-settings-tab="animation" role="tab" aria-selected="false">动画</button>
+            </div>
+            <div class="settings-scroll">
+              <section class="settings-section" data-settings-panel="input">
+                <div class="section-label">识别输入</div>
+                <label class="field-label">音频设备<select id="audio-device"><option>默认通信设备</option><option>麦克风阵列 (Realtek)</option><option>系统回环（电脑声音）</option></select></label>
+                <label class="switch-row"><span><b>静音自动暂停</b><small>连续 3 秒无声时暂停推理</small></span><input type="checkbox" id="vad-toggle" checked><i></i></label>
+              </section>
+              <section class="settings-section" data-settings-panel="input">
+                <div class="section-label">拼音轨道</div>
+                <div class="two-col">
+                  <label class="field-label">显示拼音<select id="pinyin-toggle"><option value="on">开启</option><option value="off">关闭</option></select></label>
+                  <label class="field-label">声调<select id="tone-toggle"><option value="on">带声调</option><option value="off">无声调</option></select></label>
+                </div>
+                <label class="range-row"><span>拼音字号比例 <b id="pinyin-size-value">55%</b></span><input type="range" id="pinyin-size" min="35" max="75" value="55"></label>
+              </section>
+              <section class="settings-section" data-settings-panel="layout" hidden>
+                <div class="section-label">排版方向</div>
+                <div class="segmented" id="orientation-switch"><button class="selected" data-value="horizontal">横排</button><button data-value="vertical">竖排</button></div>
+                <div class="layout-grid" id="layout-grid">
+                  <button class="layout-choice selected" data-direction="left"><span class="layout-icon left-layout">↦</span><b>左起</b><small>从左向右</small></button>
+                  <button class="layout-choice" data-direction="center"><span class="layout-icon center-layout">↔</span><b>居中</b><small>向两侧展开</small></button>
+                  <button class="layout-choice" data-direction="right"><span class="layout-icon right-layout">↤</span><b>右起</b><small>从右向左</small></button>
+                </div>
+                <div class="two-col">
+                  <label class="field-label">纵向锚点<select id="vertical-anchor"><option value="top">顶部</option><option value="center">居中</option><option value="bottom">底部</option></select></label>
+                  <label class="field-label">折行策略<select id="center-mode"><option value="block">整块居中</option><option value="line">逐行居中</option></select></label>
+                </div>
+              </section>
+              <section class="settings-section" data-settings-panel="style" hidden>
+                <div class="section-label">样式</div>
+                <label class="field-label">字体<select id="font-family"><option>Microsoft YaHei UI</option><option>Source Han Sans SC</option><option>SimHei</option></select></label>
+                <div class="two-col">
+                  <label class="field-label">字号<input type="number" id="font-size" value="64" min="24" max="200"></label>
+                  <label class="field-label">背景<select id="background-mode"><option value="green">纯绿抠像</option><option value="black">纯黑</option><option value="custom">自定义颜色</option></select></label>
+                </div>
+                <div class="color-row"><label>文字颜色<input type="color" id="text-color" value="#ffffff"></label><label>描边颜色<input type="color" id="outline-color" value="#081019"></label><label>背景色<input type="color" id="background-color" value="#18d27b"></label></div>
+                <label class="range-row"><span>描边宽度 <b id="outline-value">3px</b></span><input type="range" id="outline-width" min="0" max="10" value="3"></label>
+              </section>
+              <section class="settings-section" data-settings-panel="animation" hidden>
+                <div class="section-label">动画节奏</div>
+                <label class="range-row"><span>最小字间隔 <b id="interval-value">45ms</b></span><input type="range" id="min-interval" min="20" max="200" value="45"></label>
+                <label class="switch-row"><span><b>光标闪烁</b><small>停顿时提示下一字位置</small></span><input type="checkbox" id="cursor-blink" checked><i></i></label>
+              </section>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-components">
+        <div class="page-intro"><span class="kicker">RUNTIME COMPONENTS</span><h2>组件管理</h2><p>组件需要实际发行包和推理适配器才能启用。尚未接入时会给出明确状态，不会创建空文件或显示虚假的“已就绪”。</p></div>
+        <div class="component-grid">
+          <article class="component-card" data-component="virtual-camera"><div class="component-icon camera-icon">▣</div><div class="component-copy"><div class="component-title"><h3>虚拟摄像机组件</h3><span class="install-state" id="state-virtual-camera">未安装</span></div><p>TypeSub 将字幕直接画入摄像头帧，OBS 等软件仅选择 TypeSub Virtual Camera 作为接收设备。</p><div class="component-meta"><span>随包提供独立滤镜（未签名，安装时弹出 UAC）</span><span>1280×720 · 30fps</span></div><div class="progress-track"><i id="progress-virtual-camera"></i></div><button class="component-btn" data-install="virtual-camera">安装组件</button></div></article>
+          <article class="component-card" data-component="asr-model"><div class="component-icon model-icon">✦</div><div class="component-copy"><div class="component-title"><h3>ASR 语音识别组件</h3><span class="install-state" id="state-asr-model">未安装</span></div><p>语音转文字需要本地推理适配器与模型，两者接入后才能识别麦克风输入。</p><div class="component-meta"><span>安装包待接入</span><span>目标：离线流式识别</span></div><div class="progress-track"><i id="progress-asr-model"></i></div><button class="component-btn" data-install="asr-model">检查安装</button></div></article>
+        </div>
+        <div class="notice"><span>i</span><div><b>管理员权限</b><p id="admin-feedback">仅注册或卸载摄像头时请求 UAC，平时普通权限运行。</p></div><button class="secondary-btn admin-action" data-request-admin>请求权限</button></div>
+        <p class="install-feedback" id="install-feedback" role="alert"></p>
+      </section>
+
+      <section class="view" id="view-presets">
+        <div class="page-intro"><span class="kicker">SCENE PRESETS</span><h2>预设方案</h2><p>根据直播场景快速切换排版与样式。参数会立即应用到预览画布。</p></div>
+        <div class="preset-grid">
+          <button class="preset-card selected" data-preset="gaming"><span class="preset-swatch gaming-swatch"></span><strong>游戏娱乐</strong><small>横排 · 居中 · 高对比</small></button>
+          <button class="preset-card" data-preset="voice"><span class="preset-swatch voice-swatch"></span><strong>语音房</strong><small>横排 · 左起 · 轻描边</small></button>
+          <button class="preset-card" data-preset="teaching"><span class="preset-swatch teaching-swatch"></span><strong>教学竖排</strong><small>竖排 · 右起 · 带拼音</small></button>
+        </div>
+        <div class="preset-preview"><div><span class="kicker">CURRENT PRESET</span><h3 id="preset-name">游戏娱乐</h3><p id="preset-description">居中展开的双轨字幕，适合游戏、闲聊和短句互动。</p></div><button class="primary-btn" id="apply-preset">应用预设</button></div>
+      </section>
+
+      <section class="view" id="view-diagnostics">
+        <div class="page-intro"><span class="kicker">DIAGNOSTICS</span><h2>诊断与日志</h2><p>用于排查音频设备、组件和输出状态。诊断包不包含音频和字幕内容。</p></div>
+        <div class="diagnostic-list">
+          <div class="diagnostic-row"><span>主程序</span><b class="ok-text">运行正常</b><small id="version-label">v0.1.0 · Electron</small></div>
+          <div class="diagnostic-row"><span>管理员权限</span><b id="admin-diagnostic">检测中</b><small>仅安装组件时需要</small></div>
+          <div class="diagnostic-row"><span>配置目录</span><b class="path-text" id="data-path">读取中</b><button class="ghost-btn" id="open-data">打开</button></div>
+          <div class="diagnostic-row"><span>日志文件</span><b class="path-text" id="log-path">读取中</b><button class="ghost-btn" id="open-log-folder">打开</button></div>
+        </div>
+        <button class="secondary-btn export-btn" id="export-diagnostics">导出诊断信息</button>
+      </section>
+    </main>
+  </div>
+  <div class="toast-stack" id="toast-stack"></div>
+  <div class="onboarding-backdrop hidden" id="onboarding">
+    <div class="onboarding-card">
+      <div class="onboarding-mark">T</div>
+      <span class="kicker">WELCOME TO TYPESUB</span>
+      <h2>把每句话打在直播画面上</h2>
+      <p>虚拟摄像头组件随软件提供，安装时校验并请求管理员权限。该组件未签名；ASR 组件仍未接入，字幕动画可先用「试一试」预览。</p>
+      <div class="onboarding-items">
+        <div><span>01</span><b>虚拟摄像机</b><small>在直播软件中作为摄像头选择</small><button class="component-btn" data-install="virtual-camera">安装</button><i id="onboard-camera">待安装</i></div>
+        <div><span>02</span><b>ASR 语音识别模型</b><small>语音转字幕，本地运行</small><button class="component-btn" data-install="asr-model">安装</button><i id="onboard-model">待安装</i></div>
+      </div>
+      <p class="install-feedback" id="onboard-feedback" role="alert"></p>
+      <div class="onboarding-actions"><button class="secondary-btn admin-action" data-request-admin>请求管理员权限</button><button class="primary-btn" id="skip-onboarding">进入工作台</button></div>
+    </div>
+  </div>
+  <script src="./app.js"></script>
+</body>
+</html>

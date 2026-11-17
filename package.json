@@ -1,0 +1,75 @@
+{
+  "name": "typesub",
+  "version": "0.1.0",
+  "description": "TypeSub - live typewriter captions for Windows streaming",
+  "main": "electron/main.cjs",
+  "author": "TypeSub",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build:engine": "cargo build --manifest-path rust/Cargo.toml --release",
+    "build:camera": "powershell -NoProfile -ExecutionPolicy Bypass -File camera-filter/build.ps1",
+    "test:engine": "cargo test --manifest-path rust/Cargo.toml",
+    "start": "npm run build:engine && electron .",
+    "dev": "npm run build:engine && electron .",
+    "pack": "npm run build:engine && electron-builder --dir",
+    "dist": "npm run build:engine && electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.typesub.desktop",
+    "productName": "TypeSub",
+    "directories": {
+      "output": "release"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "rust/target/release/typesub-engine.exe",
+        "to": "typesub-engine.exe"
+      },
+      {
+        "from": "rust/target/release/typesub-elevate.exe",
+        "to": "typesub-elevate.exe"
+      },
+      {
+        "from": "rust/target/release/typesub-camera.exe",
+        "to": "typesub-camera.exe"
+      },
+      {
+        "from": "camera-filter/prebuilt/TypeSubVCam.dll",
+        "to": "TypeSubVCam.dll"
+      },
+      {
+        "from": "camera-filter/prebuilt/TypeSubVCam.dll.sha256",
+        "to": "TypeSubVCam.dll.sha256"
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "TypeSub-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "TypeSub-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "TypeSub-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}

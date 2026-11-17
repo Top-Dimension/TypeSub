@@ -1,0 +1,22 @@
+[package]
+name = "typesub-engine"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "typesub-engine"
+path = "src/main.rs"
+
+[[bin]]
+name = "typesub-elevate"
+path = "src/elevate.rs"
+
+[[bin]]
+name = "typesub-camera"
+path = "src/camera.rs"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
