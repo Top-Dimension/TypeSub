@@ -1,26 +1,35 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, net, safeStorage, shell, Tray, Menu, nativeImage, screen, utilityProcess } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
-const camera = require('./camera-component.cjs');
+const { createOverlayServer } = require('./overlay-server.cjs');
+const { completionUrl } = require('./ai-caption.cjs');
+const { createCaptionPipeline } = require('./caption-pipeline.cjs');
+const { createSpeechModel } = require('./speech-model.cjs');
 
 const isWindows = process.platform === 'win32';
 const dataDir = path.join(app.getPath('appData'), 'TypeSub');
-const componentDir = path.join(dataDir, 'components');
 const configPath = path.join(dataDir, 'config.json');
 const logPath = path.join(dataDir, 'typesub.log');
 let mainWindow;
 let tray;
 let engineProcess;
-let cameraProcess;
-let cameraBackpressure = false;
-let pendingCameraFrame;
 let elevationRequest;
+let overlay;
+let overlayUrl;
+let recognition;
+const speechModel = createSpeechModel(path.join(dataDir, 'models'), (url, options) => net.fetch(url, options));
+const captions = createCaptionPipeline({
+  command: engineCommand,
+  aiConfig: getAiConfig,
+  onAiError: (error) => log(`AI caption fallback: ${error.message}`, 'WARN')
+});
 
 function ensureDirs() {
-  fs.mkdirSync(componentDir, { recursive: true });
+  fs.mkdirSync(dataDir, { recursive: true });
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ version: 1, installed: {}, settings: {} }, null, 2), 'utf8');
+    fs.writeFileSync(configPath, JSON.stringify({ version: 1, settings: {} }, null, 2), 'utf8');
   }
 }
 
@@ -29,7 +38,7 @@ function readConfig() {
   try {
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch {
-    return { version: 1, installed: {}, settings: {} };
+    return { version: 1, settings: {} };
   }
 }
 
@@ -42,6 +51,22 @@ function log(message, level = 'INFO') {
   ensureDirs();
   const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
   fs.appendFileSync(logPath, line, 'utf8');
+}
+
+function getAiConfig() {
+  const ai = readConfig().ai || {};
+  try {
+    const apiKey = ai.encryptedKey ? safeStorage.decryptString(Buffer.from(ai.encryptedKey, 'base64')) : ai.apiKey;
+    return { ...ai, apiKey };
+  } catch {
+    return { ...ai, apiKey: '' };
+  }
+}
+
+function migrateAiKey(config) {
+  if (!config.ai?.apiKey || !safeStorage.isEncryptionAvailable()) return;
+  config.ai.encryptedKey = safeStorage.encryptString(config.ai.apiKey).toString('base64');
+  delete config.ai.apiKey;
 }
 
 function isElevated() {
@@ -95,78 +120,84 @@ function requestElevationOnce() {
   return elevationRequest;
 }
 
-function componentManifest(id) {
-  return path.join(componentDir, id, 'manifest.json');
+function speechStatus(status, data = {}) {
+  mainWindow?.webContents.send('speech-event', { type: 'status', status, ...data });
 }
 
-function componentState(id) {
-  if (id === 'virtual-camera') return { installed: camera.isOwnCamera(componentDir) };
-  const manifest = componentManifest(id);
-  if (!fs.existsSync(manifest)) return { installed: false };
+function stopRecognition({ clear = true } = {}) {
+  if (recognition) {
+    clearTimeout(recognition.timeout);
+    recognition.child.kill();
+    recognition = undefined;
+  }
+  if (clear) captions.clear();
+  else captions.cancelCorrection();
+}
+
+async function startRecognition(sampleRate) {
+  if (!engineProcess?.stdin?.writable) return { ok: false, message: '字幕引擎未启动，请重新启动 TypeSub。' };
+  if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 96000) {
+    return { ok: false, message: '麦克风采样率不受支持。' };
+  }
+  if (!await speechModel.installed()) return { ok: false, message: '请先下载语音模型。' };
+  if (recognition) return { ok: false, message: '语音识别已在运行。' };
+  const platform = isWindows ? 'win' : process.platform;
+  let nativeDir;
   try {
-    const record = JSON.parse(fs.readFileSync(manifest, 'utf8'));
-    return { ...record, installed: record.verified === true };
+    nativeDir = path.dirname(require.resolve(`sherpa-onnx-${platform}-${process.arch}/package.json`))
+      .replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked');
   } catch {
-    return { installed: false };
+    return { ok: false, message: '当前安装包不包含此系统架构的语音引擎。' };
   }
-}
-
-function cameraBinaryPath() {
-  const candidates = [
-    path.join(process.resourcesPath || '', 'typesub-camera.exe'),
-    path.join(__dirname, '..', 'rust', 'target', 'release', 'typesub-camera.exe'),
-    path.join(__dirname, '..', 'rust', 'target', 'debug', 'typesub-camera.exe')
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate));
-}
-
-function startCamera() {
-  if (cameraProcess || !camera.isOwnCamera(componentDir)) return;
-  const binary = cameraBinaryPath();
-  if (!binary) {
-    log('Rust camera sender missing', 'ERROR');
-    return;
-  }
-  cameraProcess = spawn(binary, [], { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
-  cameraProcess.stderr.on('data', (chunk) => log(`camera: ${chunk.toString().trim()}`, 'WARN'));
-  cameraProcess.on('error', (error) => { log(`camera sender failed: ${error.message}`, 'ERROR'); cameraProcess = null; });
-  cameraProcess.on('exit', () => { cameraProcess = null; cameraBackpressure = false; pendingCameraFrame = null; });
-}
-
-function sendCameraFrame(pixels) {
-  if (!cameraProcess?.stdin?.writable || !ArrayBuffer.isView(pixels) || pixels.byteLength !== 1280 * 720 * 4) return;
-  const frame = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
-  if (cameraBackpressure) {
-    pendingCameraFrame = frame;
-    return;
-  }
-  const header = Buffer.allocUnsafe(4);
-  header.writeUInt32LE(frame.length);
-  cameraBackpressure = !cameraProcess.stdin.write(Buffer.concat([header, frame]));
-  if (cameraBackpressure) cameraProcess.stdin.once('drain', () => {
-    cameraBackpressure = false;
-    if (pendingCameraFrame) {
-      const latest = pendingCameraFrame;
-      pendingCameraFrame = null;
-      sendCameraFrame(latest);
+  const env = { ...process.env };
+  const libraryPath = isWindows ? 'PATH' : process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : 'LD_LIBRARY_PATH';
+  env[libraryPath] = [nativeDir, env[libraryPath]].filter(Boolean).join(path.delimiter);
+  const child = utilityProcess.fork(path.join(__dirname, 'speech-worker.cjs'), [speechModel.directory], {
+    env, serviceName: 'TypeSub Speech Recognition', stdio: 'pipe'
+  });
+  captions.clear();
+  const session = { id: crypto.randomUUID(), child, sampleRate, hasPartial: false, pending: 0, ready: false };
+  recognition = session;
+  let diagnostic = '';
+  child.stderr?.setEncoding('utf8').on('data', (chunk) => { diagnostic = (diagnostic + chunk).slice(-2500); });
+  child.on('message', (event) => {
+    if (session !== recognition) return;
+    if (event.type === 'ready') {
+      clearTimeout(session.timeout);
+      session.ready = true;
+      speechStatus('listening', { id: session.id });
+    } else if (event.type === 'drain') {
+      session.pending--;
+    } else if (event.type === 'partial' || event.type === 'final') {
+      const final = event.type === 'final';
+      captions.submit(event.text, { revise: session.hasPartial, optimize: final });
+      session.hasPartial = !final;
+    } else if (event.type === 'rejected' && session.hasPartial) {
+      captions.clear();
+      session.hasPartial = false;
     }
   });
-}
-
-function stopCamera() {
-  pendingCameraFrame = null;
-  if (!cameraProcess) return;
-  cameraProcess.stdin.end();
-  const child = cameraProcess;
-  setTimeout(() => { if (!child.killed) child.kill(); }, 500).unref();
-  cameraProcess = null;
+  child.once('exit', (code) => {
+    if (session !== recognition) return;
+    clearTimeout(session.timeout);
+    recognition = undefined;
+    captions.cancelCorrection();
+    log(`Speech recognizer exited (${code}): ${diagnostic.trim()}`, 'WARN');
+    speechStatus('error', { message: '本地语音引擎已退出，请查看日志后重新开始。' });
+  });
+  session.timeout = setTimeout(() => {
+    stopRecognition();
+    speechStatus('error', { message: '本地模型加载超时，请重新开始。' });
+  }, 30000);
+  return { ok: true, id: session.id };
 }
 
 function engineBinaryPath() {
+  const binary = isWindows ? 'typesub-engine.exe' : 'typesub-engine';
   const candidates = [
-    path.join(process.resourcesPath || '', 'typesub-engine.exe'),
-    path.join(__dirname, '..', 'rust', 'target', 'release', 'typesub-engine.exe'),
-    path.join(__dirname, '..', 'rust', 'target', 'debug', 'typesub-engine.exe')
+    path.join(process.resourcesPath || '', binary),
+    path.join(__dirname, '..', 'rust', 'target', 'release', binary),
+    path.join(__dirname, '..', 'rust', 'target', 'debug', binary)
   ];
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
@@ -180,8 +211,8 @@ function startEngine() {
   }
   engineProcess = spawn(binary, [], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let buffer = '';
-  engineProcess.stdout.on('data', (chunk) => {
-    buffer += chunk.toString();
+  engineProcess.stdout.setEncoding('utf8').on('data', (chunk) => {
+    buffer += chunk;
     const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() || '';
     for (const line of lines) {
@@ -189,6 +220,9 @@ function startEngine() {
       try {
         const message = JSON.parse(line);
         mainWindow?.webContents.send('engine-frame', message);
+        if (message.event === 'frame') overlay?.publish({
+          typed: message.typed || '', syllables: message.syllables || [], cursor: Boolean(message.cursor)
+        });
       } catch {
         log(`engine output ignored: ${line}`, 'WARN');
       }
@@ -200,6 +234,18 @@ function startEngine() {
     engineProcess = null;
   });
   engineProcess.on('exit', () => { engineProcess = null; });
+  engineProcess.stdin.on('error', (error) => log(`engine input unavailable: ${error.message}`, 'WARN'));
+  applyCaptionSettings(readConfig().settings || {});
+}
+
+function applyCaptionSettings(settings) {
+  engineCommand('settings', `minInterval=${settings.minInterval ?? 45};pinyin=${settings.pinyin === false ? 0 : 1};tone=${settings.tone === false ? 0 : 1}`);
+  const fields = [
+    'orientation', 'direction', 'pinyin', 'pinyinSize', 'verticalAnchor', 'centerMode',
+    'fontFamily', 'fontSize', 'backgroundMode', 'textColor', 'outlineColor', 'backgroundColor',
+    'outlineWidth', 'cursorBlink'
+  ];
+  overlay?.publish({ settings: Object.fromEntries(fields.map((field) => [field, settings[field]])) });
 }
 
 function engineCommand(command, payload = '') {
@@ -218,12 +264,16 @@ function stopEngine() {
 }
 
 async function createWindow() {
-  const { width: availableWidth, height: availableHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const workArea = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const width = Math.min(1120, workArea.width);
+  const height = Math.min(780, workArea.height);
   mainWindow = new BrowserWindow({
-    width: Math.min(1020, availableWidth),
-    height: Math.min(680, availableHeight),
-    minWidth: Math.min(760, availableWidth),
-    minHeight: Math.min(560, availableHeight),
+    x: workArea.x + Math.floor((workArea.width - width) / 2),
+    y: workArea.y + Math.floor((workArea.height - height) / 2),
+    width,
+    height,
+    minWidth: Math.min(680, width),
+    minHeight: Math.min(440, height),
     backgroundColor: '#101519',
     title: 'TypeSub',
     autoHideMenuBar: true,
@@ -231,12 +281,22 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
       sandbox: false
     }
   });
+  const webContents = mainWindow.webContents;
+  const sameWindow = (contents) => contents === webContents && contents.getURL().startsWith('file:');
+  webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) =>
+    sameWindow(contents) && permission === 'media' && details.mediaType === 'audio');
+  webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => {
+    callback(sameWindow(contents) && permission === 'media' &&
+      details.mediaTypes?.length === 1 && details.mediaTypes[0] === 'audio');
+  });
+  webContents.on('render-process-gone', () => stopRecognition());
   await mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (tray && !app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -262,67 +322,96 @@ function createTray() {
 
 app.whenReady().then(async () => {
   ensureDirs();
-  await createWindow();
-  createTray();
+  const config = readConfig();
+  if (!/^[a-f\d]{48}$/.test(config.overlayToken || '')) config.overlayToken = crypto.randomBytes(24).toString('hex');
+  try { migrateAiKey(config); } catch { log('Unable to migrate AI API key to OS storage', 'WARN'); }
+  overlay = createOverlayServer({ token: config.overlayToken, port: config.overlayPort });
+  try {
+    overlayUrl = await overlay.start();
+    config.overlayPort = Number(new URL(overlayUrl).port);
+  } catch (error) {
+    log(`OBS browser source could not start: ${error.message}`, 'ERROR');
+    overlay = undefined;
+  }
+  writeConfig(config);
+  applyCaptionSettings(config.settings || {});
   startEngine();
-  startCamera();
+  await createWindow();
+  try { createTray(); } catch (error) { log(`System tray unavailable: ${error.message}`, 'WARN'); }
 });
 
-app.on('before-quit', () => {
-  stopCamera();
+app.on('activate', () => {
+  if (mainWindow) mainWindow.show();
+  else createWindow();
+});
+app.on('window-all-closed', () => app.quit());
+
+app.on('before-quit', (event) => {
+  const download = speechModel.cancel();
+  if (download) {
+    event.preventDefault();
+    download.catch(() => {}).finally(() => app.quit());
+    return;
+  }
+  app.isQuitting = true;
+  stopRecognition();
+  overlay?.close();
   stopEngine();
   log('application stopped');
 });
 
 ipcMain.handle('runtime-info', async () => {
   const config = readConfig();
+  const ai = getAiConfig();
+  const [elevated, model] = await Promise.all([isElevated(), speechModel.status()]);
   return {
-    elevated: await isElevated(),
+    elevated,
+    isWindows,
+    version: app.getVersion(),
     firstRun: !config.onboarded,
     dataDir,
     logPath,
-    config,
-    components: {
-      'virtual-camera': componentState('virtual-camera'),
-      'asr-model': componentState('asr-model')
-    }
+    overlayUrl,
+    config: {
+      settings: config.settings || {},
+      ai: { baseUrl: ai.baseUrl || '', model: ai.model || '', hasKey: Boolean(ai.apiKey) }
+    },
+    speechModel: model
   };
 });
 
-ipcMain.handle('install-component', async (_event, id) => {
-  if (!['virtual-camera', 'asr-model'].includes(id)) return { ok: false, message: '未知组件' };
-  if (id === 'virtual-camera') {
-    try {
-      const manifest = await camera.install(componentDir, elevationHelperPath(), (progress) => {
-        mainWindow?.webContents.send('component-progress', { id, progress, label: progress < .93 ? '下载中' : '安装中' });
-      });
-      startCamera();
-      mainWindow?.webContents.send('camera-ready');
-      return { ok: true, manifest };
-    } catch (error) {
-      log(`camera installation failed: ${error.message}`, 'ERROR');
-      return { ok: false, message: error.message };
-    }
+ipcMain.handle('speech-model-download', async () => {
+  try {
+    await speechModel.download((progress) => {
+      mainWindow?.webContents.send('speech-event', { type: 'download', progress });
+    });
+    return { ok: true, model: await speechModel.status() };
+  } catch (error) {
+    log(`Speech model installation failed: ${error.message}`, 'WARN');
+    return { ok: false, message: error.message };
   }
-  return {
-    ok: false,
-    message: '仓库尚未提供可运行的 ASR 推理适配器及已校验模型包；当前无法启用语音识别'
-  };
 });
-
-ipcMain.handle('uninstall-component', async (_event, id) => {
-  if (!['virtual-camera', 'asr-model'].includes(id)) throw new Error('未知组件');
-  if (id === 'virtual-camera') {
-    stopCamera();
-    await camera.uninstall(componentDir, elevationHelperPath());
-    return { ok: true };
+ipcMain.handle('speech-start', async (_event, sampleRate) => {
+  try { return await startRecognition(sampleRate); }
+  catch (error) {
+    log(`Speech startup failed: ${error.message}`, 'WARN');
+    return { ok: false, message: '无法启动本地语音引擎，请查看日志。' };
   }
-  const target = path.join(componentDir, id);
-  fs.rmSync(target, { recursive: true, force: true });
-  const config = readConfig();
-  if (config.installed) delete config.installed[id];
-  writeConfig(config);
-  log(`component uninstalled: ${id}`);
+});
+ipcMain.on('speech-audio', (event, id, samples) => {
+  const session = recognition;
+  if (event.sender !== mainWindow?.webContents || !session?.ready || id !== session.id ||
+      !(samples instanceof Float32Array) || samples.length !== Math.round(session.sampleRate / 10)) return;
+  if (session.pending >= 12) {
+    stopRecognition({ clear: false });
+    speechStatus('error', { message: '本地识别无法跟上当前音频，请关闭占用 CPU 的程序后重新开始。' });
+    return;
+  }
+  session.pending++;
+  session.child.postMessage({ samples, sampleRate: session.sampleRate });
+});
+ipcMain.handle('speech-stop', (_event, id) => {
+  if (id === undefined || recognition?.id === id) stopRecognition();
   return { ok: true };
 });
 
@@ -331,6 +420,44 @@ ipcMain.handle('set-config', (_event, settings) => {
   config.settings = settings;
   config.onboarded = true;
   writeConfig(config);
+  applyCaptionSettings(settings);
+  return { ok: true };
+});
+
+ipcMain.handle('set-ai-config', (_event, next) => {
+  const config = readConfig();
+  const baseUrl = String(next.baseUrl ?? config.ai?.baseUrl ?? '').trim();
+  const model = String(next.model ?? config.ai?.model ?? '').trim();
+  const key = next.apiKey === undefined ? undefined : String(next.apiKey).trim();
+  try {
+    if (next.baseUrl !== undefined && baseUrl) completionUrl(baseUrl);
+    if (key && !safeStorage.isEncryptionAvailable()) throw new Error('系统加密存储不可用，无法保存 API Key。');
+    config.ai = { ...config.ai, baseUrl, model };
+    if (key !== undefined) {
+      delete config.ai.apiKey;
+      if (key) config.ai.encryptedKey = safeStorage.encryptString(key).toString('base64');
+      else delete config.ai.encryptedKey;
+    }
+    writeConfig(config);
+    captions.cancelCorrection();
+    return { ok: true, hasKey: Boolean(getAiConfig().apiKey), model };
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+});
+
+ipcMain.handle('submit-caption', (_event, { text, revise = false, optimize = false, clear = false }) => {
+  if (clear) {
+    captions.clear();
+    if (recognition) recognition.hasPartial = false;
+    return { ok: true };
+  }
+  stopRecognition({ clear: false });
+  return { ok: captions.submit(String(text || ''), { revise, optimize }) };
+});
+
+ipcMain.handle('set-caption-visible', (_event, visible) => {
+  overlay?.publish({ visible: Boolean(visible) });
   return { ok: true };
 });
 
@@ -350,10 +477,3 @@ ipcMain.handle('request-admin', async () => {
   }
   return result;
 });
-
-ipcMain.handle('engine-command', (_event, { command, payload = '' }) => ({
-  ok: engineCommand(command, payload)
-}));
-
-ipcMain.on('camera-frame', (_event, pixels) => sendCameraFrame(pixels));
-

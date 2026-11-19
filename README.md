@@ -2,15 +2,16 @@
 
 English | [Chinese](README.zh-CN.md)
 
-> This software is in early development.
+> This software is in early development.The software is in the early stages of development; the version downloaded below is the pre-release version.
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/TypeSub-Setup-0.1.2-x64.exe)
+![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
 ![Engine](https://img.shields.io/badge/engine-Rust-DEA584)
 ![Migration](https://img.shields.io/badge/Rust%20migration-in%20progress-yellow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-TypeSub is a typing-style caption app for livestreams. It reveals captions one character at a time as you speak and can show pinyin above Chinese characters.
+TypeSub recognizes speech from your microphone and displays live captions one character at a time in an OBS Browser Source.
 
 ## Features
 
@@ -21,24 +22,30 @@ TypeSub is a typing-style caption app for livestreams. It reveals captions one c
 
 ## Getting started
 
-On Windows, install Node.js, npm, and the Rust MSVC toolchain. Then run:
+To run from source, install Node.js, npm, and Rust. Windows builds use the Rust MSVC toolchain.
 
 ```powershell
 npm install
 npm start
 ```
 
-`npm start` builds the Rust engine before opening the Electron desktop window. On first launch, you can skip the component setup and click "Try it" in the workspace to preview the animation.
+`npm start` builds the Rust engine and opens the Electron app. Keep TypeSub running on the same PC as OBS. Copy the URL from the workspace, add a **Browser** source in OBS, and paste the URL into the source properties. Set the source's **Width** and **Height** to the area you want to use. Captions reflow to the source dimensions and advance by complete lines or columns as they fill the available space.
 
-The repository includes the prebuilt x64 virtual camera filter and its SHA-256 checksum in `camera-filter/prebuilt/`. The upstream source ZIP is not needed or committed. The first time you click "Install component" on the components page, a separate Rust helper verifies the filter and requests Windows UAC permission to register it on that computer. Normal launches do not require administrator privileges. TypeSub renders its own caption frames and sends them to `TypeSub Virtual Camera`; OBS and other streaming apps only receive the camera output. The filter is not yet Authenticode-signed, and end-to-end delivery of dynamic captions to streaming software has not yet been verified. Microphone-based ASR is not integrated yet, so "Try it" currently demonstrates only the typing animation.
+Click **Download model (134 MB)** on first launch or under Input. The app downloads and verifies a Zipformer model for Mandarin and English. Choose a microphone under **Input → Microphone** and click **Start recognition** to transcribe offline. Pause recognition to switch devices, and click **Refresh devices** if your microphone is missing from the list. Click **Try it** to check the overlay with sample text before downloading.
 
-Cloning the repository requires Node.js and Rust to build and run the app; Visual Studio 2022 C++ Build Tools (MSVC v143) are only needed when intentionally rebuilding the filter with `npm run build:camera`. That command refreshes the checked-in prebuilt DLL and checksum; commit both together. The packaged installer and portable app do not require Rust or MSVC on the destination computer. After changing the main process, fully quit the old process from the tray menu before running `npm run dev` again.
+On Linux, model installation requires `tar` with bzip2 support. To build distributables, run `npm run dist:setup` on Windows x64 for the installer, or `npm run dist` on the target platform for macOS DMG or Linux AppImage.
 
-To run engine tests or build the installer and portable release:
+### Optional AI correction
+
+Under **AI 优化** (AI correction), enter an API key and model name. Leave Base URL empty to use the default endpoint, or enter a service that supports Chat Completions. TypeSub displays the raw recognition result immediately and sends the final text of each utterance for correction. The raw subtitle stays visible if the API is unconfigured, fails, or takes longer than two seconds. Choose a fast model with little or no reasoning. TypeSub disables or reduces reasoning where it knows how to configure the provider.
+
+After changing the main process in development, quit the old process from the tray before running `npm run dev`.
+
+To run the application and Rust engine tests:
 
 ```powershell
 npm run test:engine
-npm run dist
+npm run test:app
 ```
 
 ## License

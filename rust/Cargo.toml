@@ -11,10 +11,6 @@ path = "src/main.rs"
 name = "typesub-elevate"
 path = "src/elevate.rs"
 
-[[bin]]
-name = "typesub-camera"
-path = "src/camera.rs"
-
 [profile.release]
 opt-level = 3
 lto = "thin"

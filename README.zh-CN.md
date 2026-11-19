@@ -2,15 +2,16 @@
 
 [英文](README.md) | 中文
 
-> 软件正在开发初期
+> 软件正在开发初期,以下下载的是Pre-release版本
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/TypeSub-Setup-0.1.2-x64.exe)
+![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
 ![Engine](https://img.shields.io/badge/engine-Rust-DEA584)
 ![Migration](https://img.shields.io/badge/Rust%20migration-in%20progress-yellow)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-TypeSub 是给直播用的打字字幕软件：说话时让字幕一个字一个字地出现，还能把拼音放在汉字上面。
+TypeSub 识别麦克风的语音，在 OBS 浏览器来源逐字显示字幕，也支持为汉字显示拼音。
 
 ## 能玩什么
 
@@ -21,24 +22,30 @@ TypeSub 是给直播用的打字字幕软件：说话时让字幕一个字一个
 
 ## 跑起来
 
-准备一台电脑，装好 Node.js、npm 和 Rust 的 MSVC 工具链，然后在项目目录执行：
+从源码运行需要 Node.js、npm 和 Rust。Windows 构建使用 Rust 的 MSVC 工具链。
 
 ```powershell
 npm install
 npm start
 ```
 
-`npm start` 会先编译 Rust 引擎，再打开 Electron 桌面窗口。首次进入可以跳过组件引导，直接在工作台点「试一试」看效果。
+`npm start` 会先编译 Rust 引擎，再打开 Electron 桌面窗口。让 TypeSub 和 OBS 在同一台电脑运行。在 TypeSub 工作台点击「复制 URL」，再在 OBS 添加「浏览器」来源并粘贴 URL。把来源属性里的宽度和高度设为需要的字幕区域。字幕会按来源尺寸自动换行，空间不足时按整行或整列翻页。
 
-仓库的 `camera-filter/prebuilt/` 已包含 x64 虚拟摄像头 DLL 及其 SHA-256 校验文件，不需要提交上游源码 ZIP。首次在组件页点击「安装组件」时，会校验滤镜并通过独立 Rust 助手在这台电脑上请求 Windows UAC 注册；日常启动无需管理员权限。TypeSub 自己绘制字幕画面并发送到 `TypeSub Virtual Camera`，OBS 等直播软件仅作为接收端。该滤镜目前未进行 Authenticode 签名，且动态字幕在直播软件中的端到端验证尚未完成。ASR 麦克风识别组件仍未接入，工作台的「试一试」目前只演示打字动画。
+首次打开软件时，或在工作台的「输入」里，点击「下载模型（134 MB）」。TypeSub 会下载并校验支持普通话和英语的 Zipformer 模型。在「输入 → 麦克风」选择设备，然后点击「开始识别」进行离线识别。切换设备前请先暂停识别，列表里没有所需设备时可点击「刷新设备」。也可以先用「试一试」检查 OBS 是否收到示例字幕。
 
-克隆仓库运行需要 Node.js 和 Rust；仅在主动执行 `npm run build:camera` 重编译滤镜时才需要 Visual Studio 2022 C++ Build Tools（MSVC v143）。该命令会更新预编译 DLL 和校验文件，两者应一起提交。打包好的安装版和绿色版在目标电脑上不需要 Rust 或 MSVC。修改主进程后，需要从托盘菜单完全退出旧进程再重新运行 `npm run dev`。
+Linux 解包模型需要支持 bzip2 的 `tar`。Windows x64 安装包可用 `npm run dist:setup` 构建。在对应系统上运行 `npm run dist` 可构建 macOS DMG 或 Linux AppImage。
 
-要跑引擎测试或打包安装器、绿色版：
+### 选用 AI 字幕优化
+
+在「AI 优化」填写 API Key 和模型名称，可填写兼容 Chat Completions 的 API Base URL。Base URL 留空时使用默认端点。TypeSub 先显示辨识原文，断句后将文字送去校对。API 未配置、出错或超过 2 秒时，原文会保留。请选择低延迟模型。对于有对应参数的服务，TypeSub 会关闭推理或设为较低档位。
+
+开发时修改主进程后，请从托盘完全退出旧进程，再运行 `npm run dev`。
+
+运行应用和 Rust 引擎测试：
 
 ```powershell
 npm run test:engine
-npm run dist
+npm run test:app
 ```
 
 ## 许可证

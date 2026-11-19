@@ -1,18 +1,19 @@
 {
   "name": "typesub",
-  "version": "0.1.0",
-  "description": "TypeSub - live typewriter captions for Windows streaming",
+  "version": "0.1.2",
+  "description": "TypeSub - offline speech recognition and live OBS captions",
   "main": "electron/main.cjs",
   "author": "TypeSub",
   "license": "MIT",
   "private": true,
   "scripts": {
     "build:engine": "cargo build --manifest-path rust/Cargo.toml --release",
-    "build:camera": "powershell -NoProfile -ExecutionPolicy Bypass -File camera-filter/build.ps1",
+    "test:app": "node --test tests/*.test.cjs",
     "test:engine": "cargo test --manifest-path rust/Cargo.toml",
     "start": "npm run build:engine && electron .",
     "dev": "npm run build:engine && electron .",
     "pack": "npm run build:engine && electron-builder --dir",
+    "dist:setup": "npm run build:engine && electron-builder --win nsis --x64",
     "dist": "npm run build:engine && electron-builder"
   },
   "devDependencies": {
@@ -28,38 +29,38 @@
     "electronDist": "node_modules/electron/dist",
     "files": [
       "electron/**/*",
+      "!electron/camera-component.cjs",
       "src/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "rust/target/release/typesub-engine.exe",
-        "to": "typesub-engine.exe"
-      },
-      {
-        "from": "rust/target/release/typesub-elevate.exe",
-        "to": "typesub-elevate.exe"
-      },
-      {
-        "from": "rust/target/release/typesub-camera.exe",
-        "to": "typesub-camera.exe"
-      },
-      {
-        "from": "camera-filter/prebuilt/TypeSubVCam.dll",
-        "to": "TypeSubVCam.dll"
-      },
-      {
-        "from": "camera-filter/prebuilt/TypeSubVCam.dll.sha256",
-        "to": "TypeSubVCam.dll.sha256"
-      }
-    ],
+    "asarUnpack": ["node_modules/sherpa-onnx-*/**"],
     "win": {
+      "extraResources": [
+        { "from": "rust/target/release/typesub-engine.exe", "to": "typesub-engine.exe" },
+        { "from": "rust/target/release/typesub-elevate.exe", "to": "typesub-elevate.exe" }
+      ],
       "signAndEditExecutable": false,
       "target": [
         "nsis",
         "portable"
       ],
       "artifactName": "TypeSub-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "TypeSub uses the microphone to generate live captions on this computer."
+      },
+      "extraResources": [
+        { "from": "rust/target/release/typesub-engine", "to": "typesub-engine" }
+      ]
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "AudioVideo",
+      "extraResources": [
+        { "from": "rust/target/release/typesub-engine", "to": "typesub-engine" }
+      ]
     },
     "nsis": {
       "artifactName": "TypeSub-Setup-${version}-${arch}.${ext}",
@@ -71,5 +72,8 @@
     "portable": {
       "artifactName": "TypeSub-Portable-${version}-${arch}.${ext}"
     }
+  },
+  "dependencies": {
+    "sherpa-onnx-node": "2.0.2"
   }
 }

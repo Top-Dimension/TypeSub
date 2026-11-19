@@ -46,7 +46,7 @@
               <div class="preview-tools"><span class="live-pill"><span></span>预览</span><button class="ghost-btn" id="clear-caption">清屏</button></div>
             </div>
             <div class="preview-frame">
-              <div class="preview-meta"><span>1280 × 720</span><span id="fps-label">30 FPS</span></div>
+              <div class="preview-meta"><span>OBS 浏览器来源</span><span>实时</span></div>
               <div class="safe-area">
                 <div class="caption-stage" id="caption-stage">
                   <div class="caption-lines" id="caption-lines">
@@ -58,8 +58,12 @@
               </div>
               <div class="preview-bottom"><span><i class="signal"></i>字幕画布预览</span><span id="preview-state">待机</span></div>
             </div>
+            <div class="source-row">
+              <label for="obs-url">OBS 浏览器来源 URL</label>
+              <div><input id="obs-url" type="text" readonly aria-label="OBS 浏览器来源 URL"><button class="secondary-btn" id="copy-obs-url" type="button" disabled>复制 URL</button></div>
+            </div>
             <div class="quick-actions">
-              <button class="primary-btn" id="toggle-recognition"><span class="play-icon">▶</span><span>开始识别</span></button>
+              <button class="primary-btn" id="toggle-recognition" disabled><span class="play-icon">▶</span><span>开始识别</span></button>
               <button class="secondary-btn" id="try-demo"><span>✦</span>试一试</button>
               <button class="secondary-btn" id="toggle-canvas"><span>◌</span>字幕画布</button>
             </div>
@@ -72,8 +76,7 @@
             </div>
             <div class="metrics">
               <div class="metric"><span>麦克风电平</span><strong id="level-value">--</strong><div class="level-bar"><i id="level-bar"></i></div></div>
-              <div class="metric"><span>识别延迟</span><strong id="latency-value">-- ms</strong><em>目标 ≤ 600ms</em></div>
-              <div class="metric"><span>虚拟摄像头</span><strong id="camera-value">检测中</strong><em id="camera-detail">组件状态</em></div>
+              <div class="metric"><span>浏览器来源</span><strong id="source-value">启动中</strong><em>随来源宽度自动换行</em></div>
             </div>
           </div>
 
@@ -84,12 +87,17 @@
               <button data-settings-tab="layout" role="tab" aria-selected="false">排版</button>
               <button data-settings-tab="style" role="tab" aria-selected="false">样式</button>
               <button data-settings-tab="animation" role="tab" aria-selected="false">动画</button>
+              <button data-settings-tab="ai" role="tab" aria-selected="false">AI 优化</button>
             </div>
             <div class="settings-scroll">
               <section class="settings-section" data-settings-panel="input">
                 <div class="section-label">识别输入</div>
-                <label class="field-label">音频设备<select id="audio-device"><option>默认通信设备</option><option>麦克风阵列 (Realtek)</option><option>系统回环（电脑声音）</option></select></label>
-                <label class="switch-row"><span><b>静音自动暂停</b><small>连续 3 秒无声时暂停推理</small></span><input type="checkbox" id="vad-toggle" checked><i></i></label>
+                <div class="microphone-row">
+                  <label class="field-label" for="microphone-device">麦克风<select id="microphone-device" aria-describedby="microphone-hint" disabled><option value="">系统默认麦克风</option></select></label>
+                  <button class="secondary-btn" id="refresh-microphones" type="button" disabled>刷新设备</button>
+                </div>
+                <p class="field-help" id="microphone-hint" role="status"></p>
+                <div class="ai-actions"><button class="secondary-btn" data-download-model type="button">下载模型（134 MB）</button><span id="input-model-status" role="status"></span></div>
               </section>
               <section class="settings-section" data-settings-panel="input">
                 <div class="section-label">拼音轨道</div>
@@ -117,7 +125,7 @@
                 <label class="field-label">字体<select id="font-family"><option>Microsoft YaHei UI</option><option>Source Han Sans SC</option><option>SimHei</option></select></label>
                 <div class="two-col">
                   <label class="field-label">字号<input type="number" id="font-size" value="64" min="24" max="200"></label>
-                  <label class="field-label">背景<select id="background-mode"><option value="green">纯绿抠像</option><option value="black">纯黑</option><option value="custom">自定义颜色</option></select></label>
+                  <label class="field-label">背景<select id="background-mode"><option value="transparent">透明</option><option value="green">纯绿抠像</option><option value="black">纯黑</option><option value="custom">自定义颜色</option></select></label>
                 </div>
                 <div class="color-row"><label>文字颜色<input type="color" id="text-color" value="#ffffff"></label><label>描边颜色<input type="color" id="outline-color" value="#081019"></label><label>背景色<input type="color" id="background-color" value="#18d27b"></label></div>
                 <label class="range-row"><span>描边宽度 <b id="outline-value">3px</b></span><input type="range" id="outline-width" min="0" max="10" value="3"></label>
@@ -127,19 +135,25 @@
                 <label class="range-row"><span>最小字间隔 <b id="interval-value">45ms</b></span><input type="range" id="min-interval" min="20" max="200" value="45"></label>
                 <label class="switch-row"><span><b>光标闪烁</b><small>停顿时提示下一字位置</small></span><input type="checkbox" id="cursor-blink" checked><i></i></label>
               </section>
+              <section class="settings-section ai-settings" data-settings-panel="ai" hidden>
+                <div class="section-label">AI 字幕优化（可选）</div>
+                <label class="field-label">API Key<input id="ai-api-key" type="password" autocomplete="off" placeholder="未设置时直接使用原文"></label>
+                <label class="field-label">API Base URL<input id="ai-base-url" type="url" placeholder="https://api.openai.com/v1"></label>
+                <label class="field-label">模型名称<input id="ai-model" type="text" placeholder="例如 gpt-4.1-nano"></label>
+                <p class="field-help">支持兼容 Chat Completions 的 API。启用后只将每段已辨识文字发送到你设置的服务。</p>
+                <div class="ai-actions"><button class="secondary-btn" id="save-ai" type="button">保存 AI 设置</button><button class="ghost-btn" id="clear-ai-key" type="button">清除 Key</button><span id="ai-status">未设置，使用原文</span></div>
+              </section>
             </div>
           </div>
         </div>
       </section>
 
       <section class="view" id="view-components">
-        <div class="page-intro"><span class="kicker">RUNTIME COMPONENTS</span><h2>组件管理</h2><p>组件需要实际发行包和推理适配器才能启用。尚未接入时会给出明确状态，不会创建空文件或显示虚假的“已就绪”。</p></div>
+        <div class="page-intro"><span class="kicker">RUNTIME COMPONENTS</span><h2>组件管理</h2><p>首次下载后，TypeSub 会在本机离线识别麦克风音频。</p></div>
         <div class="component-grid">
-          <article class="component-card" data-component="virtual-camera"><div class="component-icon camera-icon">▣</div><div class="component-copy"><div class="component-title"><h3>虚拟摄像机组件</h3><span class="install-state" id="state-virtual-camera">未安装</span></div><p>TypeSub 将字幕直接画入摄像头帧，OBS 等软件仅选择 TypeSub Virtual Camera 作为接收设备。</p><div class="component-meta"><span>随包提供独立滤镜（未签名，安装时弹出 UAC）</span><span>1280×720 · 30fps</span></div><div class="progress-track"><i id="progress-virtual-camera"></i></div><button class="component-btn" data-install="virtual-camera">安装组件</button></div></article>
-          <article class="component-card" data-component="asr-model"><div class="component-icon model-icon">✦</div><div class="component-copy"><div class="component-title"><h3>ASR 语音识别组件</h3><span class="install-state" id="state-asr-model">未安装</span></div><p>语音转文字需要本地推理适配器与模型，两者接入后才能识别麦克风输入。</p><div class="component-meta"><span>安装包待接入</span><span>目标：离线流式识别</span></div><div class="progress-track"><i id="progress-asr-model"></i></div><button class="component-btn" data-install="asr-model">检查安装</button></div></article>
+          <article class="component-card"><div class="component-icon model-icon">✦</div><div class="component-copy"><div class="component-title"><h3>TypeSub 语音模型</h3><span class="install-state" id="state-asr-model">检测中</span></div><p>普通话和英语 · Zipformer</p><progress id="model-progress" max="100" value="0" aria-label="模型下载进度" hidden></progress><button class="component-btn" data-download-model>下载模型（134 MB）</button></div></article>
         </div>
-        <div class="notice"><span>i</span><div><b>管理员权限</b><p id="admin-feedback">仅注册或卸载摄像头时请求 UAC，平时普通权限运行。</p></div><button class="secondary-btn admin-action" data-request-admin>请求权限</button></div>
-        <p class="install-feedback" id="install-feedback" role="alert"></p>
+        <div class="notice" data-windows-only><span>i</span><div><b>管理员权限</b><p id="admin-feedback">检测中</p></div><button class="secondary-btn admin-action" data-request-admin>请求权限</button></div>
       </section>
 
       <section class="view" id="view-presets">
@@ -155,8 +169,8 @@
       <section class="view" id="view-diagnostics">
         <div class="page-intro"><span class="kicker">DIAGNOSTICS</span><h2>诊断与日志</h2><p>用于排查音频设备、组件和输出状态。诊断包不包含音频和字幕内容。</p></div>
         <div class="diagnostic-list">
-          <div class="diagnostic-row"><span>主程序</span><b class="ok-text">运行正常</b><small id="version-label">v0.1.0 · Electron</small></div>
-          <div class="diagnostic-row"><span>管理员权限</span><b id="admin-diagnostic">检测中</b><small>仅安装组件时需要</small></div>
+          <div class="diagnostic-row"><span>主程序</span><b class="ok-text">运行正常</b><small id="version-label">Electron</small></div>
+          <div class="diagnostic-row" data-windows-only><span>管理员权限</span><b id="admin-diagnostic">检测中</b></div>
           <div class="diagnostic-row"><span>配置目录</span><b class="path-text" id="data-path">读取中</b><button class="ghost-btn" id="open-data">打开</button></div>
           <div class="diagnostic-row"><span>日志文件</span><b class="path-text" id="log-path">读取中</b><button class="ghost-btn" id="open-log-folder">打开</button></div>
         </div>
@@ -170,12 +184,11 @@
       <div class="onboarding-mark">T</div>
       <span class="kicker">WELCOME TO TYPESUB</span>
       <h2>把每句话打在直播画面上</h2>
-      <p>虚拟摄像头组件随软件提供，安装时校验并请求管理员权限。该组件未签名；ASR 组件仍未接入，字幕动画可先用「试一试」预览。</p>
+      <p>下载语音模型后，点击「开始识别」接收麦克风字幕。把工作台的 URL 复制到 OBS 浏览器来源。</p>
       <div class="onboarding-items">
-        <div><span>01</span><b>虚拟摄像机</b><small>在直播软件中作为摄像头选择</small><button class="component-btn" data-install="virtual-camera">安装</button><i id="onboard-camera">待安装</i></div>
-        <div><span>02</span><b>ASR 语音识别模型</b><small>语音转字幕，本地运行</small><button class="component-btn" data-install="asr-model">安装</button><i id="onboard-model">待安装</i></div>
+        <div><span>01</span><b>OBS 浏览器来源</b><small>复制工作台 URL 到 OBS</small><i>已就绪</i></div>
+        <div><span>02</span><b>TypeSub 语音模型</b><small>普通话和英语 · 离线识别</small><button class="component-btn" data-download-model>下载模型（134 MB）</button><i id="onboard-model" role="status">检测中</i></div>
       </div>
-      <p class="install-feedback" id="onboard-feedback" role="alert"></p>
       <div class="onboarding-actions"><button class="secondary-btn admin-action" data-request-admin>请求管理员权限</button><button class="primary-btn" id="skip-onboarding">进入工作台</button></div>
     </div>
   </div>
