@@ -4,6 +4,7 @@ English | [Chinese](README.zh-CN.md)
 
 > This software is in early development.The software is in the early stages of development; the version downloaded below is the pre-release version.
 
+[![Download for Linux](https://img.shields.io/badge/Download-Linux_AMD64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/typesub_0.1.2_amd64.deb)
 [![Download for Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/TypeSub-Setup-0.1.2-x64.exe)
 ![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
@@ -18,11 +19,11 @@ TypeSub recognizes speech from your microphone and displays live captions one ch
 - Click "Try it" in the workspace to preview captions driven by the Rust engine. Punctuation adds a brief pause, the animation catches up when it falls behind, and text revisions preserve unchanged parts.
 - Choose horizontal or vertical layout with left, center, or right alignment. Adjust pinyin, tones, fonts, colors, outlines, backgrounds, and typing intervals.
 - Start with a gaming/entertainment, voice-room, or vertical teaching preset. Settings are saved automatically for the next launch.
-- Closing the main window keeps the app in the system tray. Open configuration and logs from the diagnostics page, or export diagnostic information.
+- Closing the main window keeps the app in the system tray on Windows and macOS when a tray is available. On Linux, minimize the window to keep live captions running. Open configuration and logs from the diagnostics page, or export diagnostic information.
 
 ## Getting started
 
-To run from source, install Node.js, npm, and Rust. Windows builds use the Rust MSVC toolchain.
+To run from source, install Node.js, npm, and Rust. Windows builds use the Rust MSVC toolchain. Linux x64 builds use the native GNU toolchain and produce an AppImage.
 
 ```powershell
 npm install
@@ -33,7 +34,11 @@ npm start
 
 Click **Download model (134 MB)** on first launch or under Input. The app downloads and verifies a Zipformer model for Mandarin and English. Choose a microphone under **Input → Microphone** and click **Start recognition** to transcribe offline. Pause recognition to switch devices, and click **Refresh devices** if your microphone is missing from the list. Click **Try it** to check the overlay with sample text before downloading.
 
-On Linux, model installation requires `tar` with bzip2 support. To build distributables, run `npm run dist:setup` on Windows x64 for the installer, or `npm run dist` on the target platform for macOS DMG or Linux AppImage.
+Run `npm run dist:linux` on Linux x64 to build the AppImage and Debian package in `release/`. On Ubuntu or Debian, install `typesub_<version>_amd64.deb` with `sudo apt install ./release/typesub_<version>_amd64.deb`, substituting the release version. The package configures Electron's sandbox for systems that restrict unprivileged user namespaces.
+
+To use the AppImage, make it executable with `chmod +x` and launch it as a regular user. If FUSE is unavailable, launch it with `--appimage-extract-and-run`. Installing the speech model requires `tar` with bzip2 support. Use the Debian package if Ubuntu reports a Chromium sandbox error when launching the AppImage.
+
+Run `npm run dist:windows` on Windows x64 for the NSIS installer and portable executable, or `npm run dist` on macOS for a DMG. Each native build command compiles the Rust engine for its target platform.
 
 ### Optional AI correction
 

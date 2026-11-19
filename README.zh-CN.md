@@ -4,6 +4,7 @@
 
 > 软件正在开发初期,以下下载的是Pre-release版本
 
+[![Download for Linux](https://img.shields.io/badge/Download-Linux_AMD64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/typesub_0.1.2_amd64.deb)
 [![Download for Windows](https://img.shields.io/badge/Download-Windows_x64-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Top-Dimension/TypeSub/releases/download/0.1.2/TypeSub-Setup-0.1.2-x64.exe)
 ![Version](https://img.shields.io/badge/version-0.1.2-blue)
 ![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
@@ -18,11 +19,11 @@ TypeSub 识别麦克风的语音，在 OBS 浏览器来源逐字显示字幕，�
 - 点工作台里的「试一试」，看 Rust 引擎驱动的逐字字幕。标点会稍作停顿，进度落后时会追赶，文本改写时也能保留没变的部分。
 - 横排、竖排都能选，再搭配左起、居中、右起；拼音、声调、字体、颜色、描边、背景和打字间隔也能随手调。
 - 懒得从头调的话，直接用游戏娱乐、语音房或教学竖排预设。设置会自动保存，下次打开接着用。
-- 关掉主窗口会留在系统托盘；配置和日志可以从诊断页打开，诊断信息也能导出。
+- Windows 和 macOS 上有系统托盘时，关闭主窗口后程序会留在托盘。Linux 上可最小化窗口，让实时字幕继续运行。配置和日志可以从诊断页打开，诊断信息也能导出。
 
 ## 跑起来
 
-从源码运行需要 Node.js、npm 和 Rust。Windows 构建使用 Rust 的 MSVC 工具链。
+从源码运行需要 Node.js、npm 和 Rust。Windows 构建使用 Rust 的 MSVC 工具链，Linux x64 构建使用本机 GNU 工具链并生成 AppImage。
 
 ```powershell
 npm install
@@ -33,7 +34,11 @@ npm start
 
 首次打开软件时，或在工作台的「输入」里，点击「下载模型（134 MB）」。TypeSub 会下载并校验支持普通话和英语的 Zipformer 模型。在「输入 → 麦克风」选择设备，然后点击「开始识别」进行离线识别。切换设备前请先暂停识别，列表里没有所需设备时可点击「刷新设备」。也可以先用「试一试」检查 OBS 是否收到示例字幕。
 
-Linux 解包模型需要支持 bzip2 的 `tar`。Windows x64 安装包可用 `npm run dist:setup` 构建。在对应系统上运行 `npm run dist` 可构建 macOS DMG 或 Linux AppImage。
+在 Linux x64 运行 `npm run dist:linux`，会在 `release/` 生成 AppImage 和 Debian 安装包。在 Ubuntu 或 Debian 上，可以用 `sudo apt install ./release/typesub_<版本>_amd64.deb` 安装，把 `<版本>` 替换为实际版本号。安装包会为限制非特权用户命名空间的系统配置 Electron 沙箱。
+
+使用 AppImage 时，先用 `chmod +x` 添加执行权限，再以普通用户启动。如果系统无法使用 FUSE，可以加上 `--appimage-extract-and-run` 启动。安装语音模型需要支持 bzip2 的 `tar`。如果 Ubuntu 启动 AppImage 时报告 Chromium 沙箱错误，请使用 Debian 安装包。
+
+Windows x64 可运行 `npm run dist:windows`，生成 NSIS 安装包和便携版。macOS 可运行 `npm run dist` 生成 DMG。每个本机打包命令都会针对当前系统编译 Rust 引擎。
 
 ### 选用 AI 字幕优化
 

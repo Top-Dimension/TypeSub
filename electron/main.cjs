@@ -296,7 +296,7 @@ async function createWindow() {
   webContents.on('render-process-gone', () => stopRecognition());
   await mainWindow.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
   mainWindow.on('close', (event) => {
-    if (tray && !app.isQuitting) {
+    if (process.platform !== 'linux' && tray && !app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
     }
