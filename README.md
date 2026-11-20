@@ -3,7 +3,7 @@
 English | [Chinese](README.zh-CN.md)
 
 <p align="center">
-  <img src="logo.png" alt="TypeSub Logo" width="300">
+  <img src="LOGO.png" alt="TypeSub Logo" width="300">
 </p>
 
 > TypeSub is in early development. The downloads below are pre-release builds.
