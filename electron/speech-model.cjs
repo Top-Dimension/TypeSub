@@ -16,8 +16,8 @@ const MODEL = {
 const FILES = ['encoder.int8.onnx', 'decoder.onnx', 'joiner.int8.onnx', 'tokens.txt'];
 const RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/';
 
-function createSpeechModel(root, fetch = globalThis.fetch) {
-  const directory = path.join(root, MODEL.id);
+function createSpeechModel(root, fetch = globalThis.fetch, bundledRoot) {
+  const directory = path.join(bundledRoot || root, MODEL.id);
   let controller;
   let job;
   let progress = null;
@@ -34,6 +34,7 @@ function createSpeechModel(root, fetch = globalThis.fetch) {
 
   async function download(onProgress) {
     if (await installed()) return;
+    if (bundledRoot) throw new Error('The bundled speech model is missing. Reinstall TypeSub to restore it.');
     if (job) return job;
     controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10 * 60 * 1000)]);
@@ -97,4 +98,4 @@ function createSpeechModel(root, fetch = globalThis.fetch) {
   };
 }
 
-module.exports = { createSpeechModel };
+module.exports = { createSpeechModel, MODEL, FILES, RELEASE };

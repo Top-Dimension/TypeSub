@@ -1,0 +1,222 @@
+<Window
+    x:Class="TypeSub.WinUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    Title="TypeSub">
+  <NavigationView x:Name="Navigation" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed" IsSettingsVisible="False" OpenPaneLength="200" CompactPaneLength="52">
+    <NavigationView.PaneHeader>
+      <TextBlock Text="TypeSub" FontSize="18" FontWeight="SemiBold" Margin="12,12,0,16" />
+    </NavigationView.PaneHeader>
+    <NavigationView.MenuItems>
+      <NavigationViewItem x:Name="StudioNav" Tag="studio" Content="Caption studio" Icon="Home" />
+      <NavigationViewItem x:Name="ComponentsNav" Tag="components" Content="Components" Icon="Download" />
+      <NavigationViewItem x:Name="PresetsNav" Tag="presets" Content="Presets" Icon="Edit" />
+      <NavigationViewItem x:Name="DiagnosticsNav" Tag="diagnostics" Content="Diagnostics &amp; logs" Icon="Setting" />
+    </NavigationView.MenuItems>
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RowDefinitions="Auto,*">
+      <Border Grid.Row="0" Padding="24,18,24,14">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+          <StackPanel>
+            <TextBlock x:Name="PageTitle" Text="Caption studio" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock x:Name="StatusText" Text="Idle" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+          </StackPanel>
+          <ComboBox x:Name="LanguageChoice" Grid.Column="1" Width="110" VerticalAlignment="Center" AutomationProperties.Name="Interface language">
+            <ComboBoxItem Content="English" Tag="en" />
+            <ComboBoxItem Content="中文" Tag="zh-CN" />
+          </ComboBox>
+          <Button x:Name="OpenLogsButton" Grid.Column="2" VerticalAlignment="Center" ToolTipService.ToolTip="Open log folder">
+            <SymbolIcon Symbol="Folder" />
+          </Button>
+        </Grid>
+      </Border>
+
+      <Border x:Name="StudioPage" Grid.Row="1" Padding="24,0,24,18">
+        <Grid ColumnDefinitions="*,360" ColumnSpacing="18">
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="16">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock x:Name="PreviewTitle" Text="Live preview" Style="{ThemeResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+              <Button x:Name="ClearButton" Grid.Column="1" Content="Clear" />
+            </Grid>
+            <Border BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" CornerRadius="4" Background="#18D27B" MinHeight="260">
+              <controls:WebView2 x:Name="PreviewWebView" MinHeight="260" DefaultBackgroundColor="Transparent" />
+            </Border>
+            <StackPanel Spacing="6">
+              <TextBlock x:Name="SourceLabel" Text="OBS Browser Source URL" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox x:Name="ObsUrlBox" IsReadOnly="True" />
+                <Button x:Name="CopyUrlButton" Grid.Column="1" Content="Copy URL" />
+              </Grid>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button x:Name="RecognitionButton" Content="Start recognition" Style="{StaticResource AccentButtonStyle}" />
+              <Button x:Name="TryButton" Content="Try it" />
+              <ToggleButton x:Name="CanvasButton" Content="Caption canvas" IsChecked="True" />
+            </StackPanel>
+            <StackPanel Spacing="6">
+              <TextBlock x:Name="TestLabel" Text="Test caption" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox x:Name="TestCaptionBox" PlaceholderText="Type a caption to show it live in OBS" MaxLength="120" />
+                <Button x:Name="ReplayButton" Grid.Column="1" Content="Replay" />
+              </Grid>
+            </StackPanel>
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+              <StackPanel Spacing="5">
+                <TextBlock x:Name="MicLevelLabel" Text="Mic level" />
+                <ProgressBar x:Name="MicLevelBar" Minimum="0" Maximum="100" Value="0" />
+              </StackPanel>
+              <StackPanel Spacing="5" Grid.Column="1">
+                <TextBlock x:Name="SourceStatusLabel" Text="Browser source" />
+                <TextBlock x:Name="SourceStatus" Text="Starting" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Column="1" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4">
+          <Grid RowDefinitions="Auto,*">
+            <Border Padding="14,10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock x:Name="SettingsTitle" Text="Caption settings" Style="{ThemeResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+                <Button x:Name="ResetButton" Grid.Column="1" Content="Reset defaults" />
+              </Grid>
+            </Border>
+            <TabView x:Name="SettingsTabs" Grid.Row="1" IsAddTabButtonVisible="False" CanDragTabs="False" TabWidthMode="Compact">
+            <TabViewItem x:Name="InputTab" Header="Input" IsClosable="False">
+              <ScrollViewer>
+                <StackPanel Padding="14" Spacing="12">
+                  <TextBlock x:Name="MicrophoneLabel" Text="Microphone" />
+                  <ComboBox x:Name="MicrophoneChoice" HorizontalAlignment="Stretch" />
+                  <Button x:Name="RefreshMicrophonesButton" Content="Refresh devices" HorizontalAlignment="Left" />
+                  <TextBlock x:Name="MicrophoneHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <Button x:Name="DownloadModelButton" Content="Download model (134 MB)" HorizontalAlignment="Left" />
+                  <ProgressBar x:Name="DownloadProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
+                  <TextBlock x:Name="ModelStatus" Text="Checking" />
+                  <TextBlock x:Name="PinyinLabel" Text="Pinyin" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
+                  <ToggleSwitch x:Name="PinyinToggle" Header="Show pinyin" IsOn="True" />
+                  <ToggleSwitch x:Name="ToneToggle" Header="With tones" IsOn="True" />
+                  <TextBlock x:Name="PinyinSizeLabel" Text="Pinyin size" />
+                  <Slider x:Name="PinyinSizeSlider" Minimum="35" Maximum="75" Value="55" StepFrequency="1" />
+                </StackPanel>
+              </ScrollViewer>
+            </TabViewItem>
+            <TabViewItem x:Name="LayoutTab" Header="Layout" IsClosable="False">
+              <ScrollViewer>
+                <StackPanel Padding="14" Spacing="12">
+                  <TextBlock x:Name="OrientationLabel" Text="Text direction" />
+                  <ComboBox x:Name="OrientationChoice" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Horizontal" Tag="horizontal" />
+                    <ComboBoxItem Content="Vertical" Tag="vertical" />
+                  </ComboBox>
+                  <TextBlock x:Name="AlignmentLabel" Text="Alignment" />
+                  <ComboBox x:Name="DirectionChoice" HorizontalAlignment="Stretch" SelectedIndex="1">
+                    <ComboBoxItem Content="Left" Tag="left" />
+                    <ComboBoxItem Content="Center" Tag="center" />
+                    <ComboBoxItem Content="Right" Tag="right" />
+                  </ComboBox>
+                  <TextBlock x:Name="VerticalPositionLabel" Text="Vertical position" />
+                  <ComboBox x:Name="VerticalAnchorChoice" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Top" Tag="top" />
+                    <ComboBoxItem Content="Center" Tag="center" />
+                    <ComboBoxItem Content="Bottom" Tag="bottom" />
+                  </ComboBox>
+                  <TextBlock x:Name="LineAlignmentLabel" Text="Line alignment" />
+                  <ComboBox x:Name="CenterModeChoice" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Center as a block" Tag="block" />
+                    <ComboBoxItem Content="Center each line" Tag="line" />
+                  </ComboBox>
+                </StackPanel>
+              </ScrollViewer>
+            </TabViewItem>
+            <TabViewItem x:Name="StyleTab" Header="Style" IsClosable="False">
+              <ScrollViewer>
+                <StackPanel Padding="14" Spacing="12">
+                  <TextBlock x:Name="FontLabel" Text="Font" />
+                  <ComboBox x:Name="FontChoice" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Microsoft YaHei UI" />
+                    <ComboBoxItem Content="Source Han Sans SC" />
+                    <ComboBoxItem Content="SimHei" />
+                  </ComboBox>
+                  <NumberBox x:Name="FontSizeBox" Header="Font size" Minimum="24" Maximum="200" Value="64" SpinButtonPlacementMode="Compact" />
+                  <TextBlock x:Name="BackgroundLabel" Text="Background" />
+                  <ComboBox x:Name="BackgroundChoice" HorizontalAlignment="Stretch" SelectedIndex="0">
+                    <ComboBoxItem Content="Transparent" Tag="transparent" />
+                    <ComboBoxItem Content="Chroma green" Tag="green" />
+                    <ComboBoxItem Content="Black" Tag="black" />
+                    <ComboBoxItem Content="Custom color" Tag="custom" />
+                  </ComboBox>
+                  <NumberBox x:Name="OutlineWidthBox" Header="Outline width" Minimum="0" Maximum="10" Value="3" SpinButtonPlacementMode="Compact" />
+                  <Expander x:Name="TextColorExpander" Header="Text color"><ColorPicker x:Name="TextColorPicker" IsAlphaEnabled="False" /></Expander>
+                  <Expander x:Name="OutlineColorExpander" Header="Outline color"><ColorPicker x:Name="OutlineColorPicker" IsAlphaEnabled="False" /></Expander>
+                  <Expander x:Name="BackgroundColorExpander" Header="Background color"><ColorPicker x:Name="BackgroundColorPicker" IsAlphaEnabled="False" /></Expander>
+                </StackPanel>
+              </ScrollViewer>
+            </TabViewItem>
+            <TabViewItem x:Name="AnimationTab" Header="Animation" IsClosable="False">
+              <ScrollViewer>
+                <StackPanel Padding="14" Spacing="12">
+                  <NumberBox x:Name="IntervalBox" Header="Minimum character interval (ms)" Minimum="20" Maximum="200" Value="45" SpinButtonPlacementMode="Compact" />
+                  <ToggleSwitch x:Name="CursorToggle" Header="Blinking cursor" IsOn="True" />
+                </StackPanel>
+              </ScrollViewer>
+            </TabViewItem>
+            <TabViewItem x:Name="AiTab" Header="AI" IsClosable="False">
+              <ScrollViewer>
+                <StackPanel Padding="14" Spacing="12">
+                  <PasswordBox x:Name="ApiKeyBox" Header="API key" PlaceholderText="Uses raw captions until configured" />
+                  <TextBox x:Name="BaseUrlBox" Header="API Base URL" PlaceholderText="https://api.openai.com/v1" />
+                  <TextBox x:Name="ModelBox" Header="Model name" PlaceholderText="e.g. gpt-4.1-nano" />
+                  <TextBlock x:Name="AiHint" Text="Supports Chat Completions-compatible APIs. Completed utterances go only to your configured service." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8"><Button x:Name="SaveAiButton" Content="Save AI settings" /><Button x:Name="ClearAiButton" Content="Clear key" /></StackPanel>
+                  <TextBlock x:Name="AiStatus" Text="Not configured; using raw captions" TextWrapping="Wrap" />
+                </StackPanel>
+              </ScrollViewer>
+            </TabViewItem>
+            </TabView>
+        </Grid>
+        </Border>
+      </Grid>
+      </Border>
+
+      <ScrollViewer x:Name="ComponentsPage" Grid.Row="1" Visibility="Collapsed" Padding="24,0,24,18">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left" Spacing="16">
+          <TextBlock x:Name="ComponentsIntro" Text="Download the model once to recognize speech offline on this device." TextWrapping="Wrap" />
+          <TextBlock x:Name="ComponentName" Text="TypeSub speech model" Style="{ThemeResource SubtitleTextBlockStyle}" />
+          <TextBlock x:Name="ComponentDetail" Text="Mandarin and English · Zipformer" />
+          <TextBlock x:Name="ComponentStatus" Text="Checking" />
+          <Button x:Name="ComponentsDownloadButton" Content="Download model (134 MB)" HorizontalAlignment="Left" />
+          <ProgressBar x:Name="ComponentProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
+          <TextBlock x:Name="AdminLabel" Text="Administrator access" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,20,0,0" />
+          <TextBlock x:Name="AdminStatus" Text="Checking" TextWrapping="Wrap" />
+          <Button x:Name="AdminButton" Content="Request administrator access" HorizontalAlignment="Left" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <ScrollViewer x:Name="PresetsPage" Grid.Row="1" Visibility="Collapsed" Padding="24,0,24,18">
+        <StackPanel MaxWidth="640" HorizontalAlignment="Left" Spacing="14">
+          <TextBlock x:Name="PresetsIntro" Text="Choose a layout and style for your stream." />
+          <Button x:Name="GamingPreset" Content="Gaming &amp; chat · centered, high contrast" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+          <Button x:Name="VoicePreset" Content="Voice chat · left aligned, light outline" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+          <Button x:Name="TeachingPreset" Content="Vertical teaching · right aligned, pinyin" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" />
+          <TextBlock x:Name="PresetStatus" TextWrapping="Wrap" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <ScrollViewer x:Name="DiagnosticsPage" Grid.Row="1" Visibility="Collapsed" Padding="24,0,24,18">
+        <StackPanel MaxWidth="760" HorizontalAlignment="Left" Spacing="12">
+          <TextBlock x:Name="DiagnosticsIntro" Text="Check audio devices, components, and output. Exported diagnostics contain no audio or caption content." TextWrapping="Wrap" />
+          <TextBlock x:Name="VersionText" />
+          <TextBlock x:Name="DiagnosticsAdmin" />
+          <TextBlock x:Name="DataPathLabel" Text="Configuration folder" Style="{ThemeResource SubtitleTextBlockStyle}" />
+          <TextBlock x:Name="DataPathText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+          <Button x:Name="OpenDataButton" Content="Open" HorizontalAlignment="Left" />
+          <TextBlock x:Name="LogPathLabel" Text="Log file" Style="{ThemeResource SubtitleTextBlockStyle}" />
+          <TextBlock x:Name="LogPathText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+          <Button x:Name="OpenLogFolderButton" Content="Open" HorizontalAlignment="Left" />
+          <Button x:Name="ExportButton" Content="Export diagnostics" HorizontalAlignment="Left" Margin="0,12,0,0" />
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </NavigationView>
+</Window>

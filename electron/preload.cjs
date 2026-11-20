@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('typeSub', {
   sendSpeechAudio: (id, samples) => ipcRenderer.send('speech-audio', id, samples),
   stopRecognition: (id) => ipcRenderer.invoke('speech-stop', id),
   saveConfig: (settings) => ipcRenderer.invoke('set-config', settings),
+  saveLanguage: (language) => ipcRenderer.invoke('set-language', language),
   saveAiConfig: (settings) => ipcRenderer.invoke('set-ai-config', settings),
   submitCaption: (text, options) => ipcRenderer.invoke('submit-caption', { text, ...options }),
   setCaptionVisible: (visible) => ipcRenderer.invoke('set-caption-visible', visible),

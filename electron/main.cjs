@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, net, safeStorage, shell, Tray, Menu, nativeImage, screen, utilityProcess } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, net, safeStorage, shell, Tray, Menu, nativeImage, screen, utilityProcess } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -7,6 +7,7 @@ const { createOverlayServer } = require('./overlay-server.cjs');
 const { completionUrl } = require('./ai-caption.cjs');
 const { createCaptionPipeline } = require('./caption-pipeline.cjs');
 const { createSpeechModel } = require('./speech-model.cjs');
+const { createNativeBridge } = require('./native-bridge.cjs');
 
 const isWindows = process.platform === 'win32';
 const dataDir = path.join(app.getPath('appData'), 'TypeSub');
@@ -19,6 +20,10 @@ let elevationRequest;
 let overlay;
 let overlayUrl;
 let recognition;
+let nativeBridge;
+let nativeEndpoint;
+let nativeWindow;
+let captionVisible = true;
 const speechModel = createSpeechModel(path.join(dataDir, 'models'), (url, options) => net.fetch(url, options));
 const captions = createCaptionPipeline({
   command: engineCommand,
@@ -122,6 +127,7 @@ function requestElevationOnce() {
 
 function speechStatus(status, data = {}) {
   mainWindow?.webContents.send('speech-event', { type: 'status', status, ...data });
+  nativeBridge?.publish('speech', { status, ...data });
 }
 
 function stopRecognition({ clear = true } = {}) {
@@ -220,6 +226,7 @@ function startEngine() {
       try {
         const message = JSON.parse(line);
         mainWindow?.webContents.send('engine-frame', message);
+        if (message.event === 'frame') nativeBridge?.publish('frame', message);
         if (message.event === 'frame') overlay?.publish({
           typed: message.typed || '', syllables: message.syllables || [], cursor: Boolean(message.cursor)
         });
@@ -304,20 +311,63 @@ async function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+function openStudio() {
+  if (!isWindows) {
+    if (mainWindow) mainWindow.show();
+    else createWindow();
+    return;
+  }
+  if (!nativeEndpoint) return;
+  if (nativeWindow && !nativeWindow.killed && nativeWindow.exitCode === null) {
+    nativeBridge.publish('activate', {});
+    return;
+  }
+  const binary = app.isPackaged
+    ? path.join(process.resourcesPath, 'winui', 'TypeSub.WinUI.exe')
+    : path.join(__dirname, '..', 'windows', 'TypeSub.WinUI', 'bin', 'Release', 'net8.0-windows10.0.19041.0', 'win-x64', 'TypeSub.WinUI.exe');
+  if (!fs.existsSync(binary)) {
+    log(`WinUI frontend missing: ${binary}`, 'ERROR');
+    dialog.showErrorBox('TypeSub', `WinUI frontend is missing:\n${binary}\n\nRun npm run build:ui and restart TypeSub.`);
+    return;
+  }
+  nativeWindow = spawn(binary, [nativeEndpoint.url, nativeEndpoint.token], { windowsHide: false, stdio: 'ignore' });
+  nativeWindow.on('error', (error) => {
+    log(`WinUI frontend failed: ${error.message}`, 'ERROR');
+    dialog.showErrorBox('TypeSub', `WinUI frontend could not start: ${error.message}`);
+    nativeWindow = null;
+  });
+  nativeWindow.on('exit', () => {
+    nativeWindow = null;
+    stopRecognition();
+  });
+}
+
 function createTray() {
   const icon = nativeImage.createFromDataURL(
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
   );
   tray = new Tray(icon);
+  updateTrayMenu();
+  tray.on('double-click', openStudio);
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+  const english = (readConfig().language || (app.getLocale().startsWith('zh') ? 'zh-CN' : 'en')) === 'en';
   tray.setToolTip('TypeSub');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '打开控制台', click: () => mainWindow?.show() },
-    { label: '显示/隐藏字幕', click: () => mainWindow?.webContents.send('hotkey', 'toggleCanvas') },
-    { label: '暂停/恢复识别', click: () => mainWindow?.webContents.send('hotkey', 'toggleRecognition') },
+    { label: english ? 'Open studio' : '打开控制台', click: openStudio },
+    { label: english ? 'Show/hide captions' : '显示/隐藏字幕', click: () => {
+      if (isWindows && nativeBridge) nativeBridge.publish('hotkey', 'toggleCanvas');
+      else mainWindow?.webContents.send('hotkey', 'toggleCanvas');
+    } },
+    { label: english ? 'Pause/resume recognition' : '暂停/恢复识别', click: () => {
+      if (isWindows && nativeBridge) nativeBridge.publish('hotkey', 'toggleRecognition');
+      else mainWindow?.webContents.send('hotkey', 'toggleRecognition');
+    } },
     { type: 'separator' },
-    { label: '退出 TypeSub', click: () => { app.isQuitting = true; app.quit(); } }
+    { label: english ? 'Quit TypeSub' : '退出 TypeSub', click: () => { app.isQuitting = true; app.quit(); } }
   ]));
-  tray.on('double-click', () => mainWindow?.show());
 }
 
 app.whenReady().then(async () => {
@@ -336,13 +386,18 @@ app.whenReady().then(async () => {
   writeConfig(config);
   applyCaptionSettings(config.settings || {});
   startEngine();
-  await createWindow();
+  if (isWindows) {
+    nativeBridge = createNativeBridge(nativeActions);
+    nativeEndpoint = await nativeBridge.start();
+    openStudio();
+  } else {
+    await createWindow();
+  }
   try { createTray(); } catch (error) { log(`System tray unavailable: ${error.message}`, 'WARN'); }
 });
 
 app.on('activate', () => {
-  if (mainWindow) mainWindow.show();
-  else createWindow();
+  openStudio();
 });
 app.on('window-all-closed', () => app.quit());
 
@@ -356,11 +411,13 @@ app.on('before-quit', (event) => {
   app.isQuitting = true;
   stopRecognition();
   overlay?.close();
+  nativeBridge?.close();
+  nativeWindow?.kill();
   stopEngine();
   log('application stopped');
 });
 
-ipcMain.handle('runtime-info', async () => {
+async function runtimeInfo() {
   const config = readConfig();
   const ai = getAiConfig();
   const [elevated, model] = await Promise.all([isElevated(), speechModel.status()]);
@@ -373,34 +430,36 @@ ipcMain.handle('runtime-info', async () => {
     logPath,
     overlayUrl,
     config: {
+      language: config.language || (app.getLocale().startsWith('zh') ? 'zh-CN' : 'en'),
       settings: config.settings || {},
       ai: { baseUrl: ai.baseUrl || '', model: ai.model || '', hasKey: Boolean(ai.apiKey) }
     },
     speechModel: model
   };
-});
+}
 
-ipcMain.handle('speech-model-download', async () => {
+async function downloadModel() {
   try {
     await speechModel.download((progress) => {
       mainWindow?.webContents.send('speech-event', { type: 'download', progress });
+      nativeBridge?.publish('download', progress);
     });
     return { ok: true, model: await speechModel.status() };
   } catch (error) {
     log(`Speech model installation failed: ${error.message}`, 'WARN');
     return { ok: false, message: error.message };
   }
-});
-ipcMain.handle('speech-start', async (_event, sampleRate) => {
+}
+async function startSpeech(sampleRate) {
   try { return await startRecognition(sampleRate); }
   catch (error) {
     log(`Speech startup failed: ${error.message}`, 'WARN');
     return { ok: false, message: '无法启动本地语音引擎，请查看日志。' };
   }
-});
-ipcMain.on('speech-audio', (event, id, samples) => {
+}
+function sendSpeechAudio(id, samples) {
   const session = recognition;
-  if (event.sender !== mainWindow?.webContents || !session?.ready || id !== session.id ||
+  if (!session?.ready || id !== session.id ||
       !(samples instanceof Float32Array) || samples.length !== Math.round(session.sampleRate / 10)) return;
   if (session.pending >= 12) {
     stopRecognition({ clear: false });
@@ -409,22 +468,30 @@ ipcMain.on('speech-audio', (event, id, samples) => {
   }
   session.pending++;
   session.child.postMessage({ samples, sampleRate: session.sampleRate });
-});
-ipcMain.handle('speech-stop', (_event, id) => {
+}
+function stopSpeech(id) {
   if (id === undefined || recognition?.id === id) stopRecognition();
   return { ok: true };
-});
+}
 
-ipcMain.handle('set-config', (_event, settings) => {
+function saveSettings(settings) {
   const config = readConfig();
   config.settings = settings;
   config.onboarded = true;
   writeConfig(config);
   applyCaptionSettings(settings);
   return { ok: true };
-});
+}
 
-ipcMain.handle('set-ai-config', (_event, next) => {
+function saveLanguage(language) {
+  const config = readConfig();
+  config.language = language === 'en' ? 'en' : 'zh-CN';
+  writeConfig(config);
+  updateTrayMenu();
+  return { ok: true };
+}
+
+function saveAiConfig(next) {
   const config = readConfig();
   const baseUrl = String(next.baseUrl ?? config.ai?.baseUrl ?? '').trim();
   const model = String(next.model ?? config.ai?.model ?? '').trim();
@@ -444,9 +511,9 @@ ipcMain.handle('set-ai-config', (_event, next) => {
   } catch (error) {
     return { ok: false, message: error.message };
   }
-});
+}
 
-ipcMain.handle('submit-caption', (_event, { text, revise = false, optimize = false, clear = false }) => {
+function submitCaption({ text, revise = false, optimize = false, clear = false }) {
   if (clear) {
     captions.clear();
     if (recognition) recognition.hasPartial = false;
@@ -454,20 +521,21 @@ ipcMain.handle('submit-caption', (_event, { text, revise = false, optimize = fal
   }
   stopRecognition({ clear: false });
   return { ok: captions.submit(String(text || ''), { revise, optimize }) };
-});
+}
 
-ipcMain.handle('set-caption-visible', (_event, visible) => {
-  overlay?.publish({ visible: Boolean(visible) });
+function setCaptionVisible(visible) {
+  captionVisible = Boolean(visible);
+  overlay?.publish({ visible: captionVisible });
   return { ok: true };
-});
+}
 
-ipcMain.handle('open-path', (_event, target) => {
+function openPath(target) {
   if (target === 'logs') return shell.openPath(path.dirname(logPath));
   if (target === 'data') return shell.openPath(dataDir);
   return '';
-});
+}
 
-ipcMain.handle('request-admin', async () => {
+async function requestAdmin() {
   const result = await requestElevationOnce();
   if (result.relaunched) {
     setTimeout(() => {
@@ -476,4 +544,43 @@ ipcMain.handle('request-admin', async () => {
     }, 150);
   }
   return result;
+}
+
+const nativeActions = {
+  runtime: runtimeInfo,
+  download: downloadModel,
+  start: startSpeech,
+  stop: stopSpeech,
+  settings: saveSettings,
+  language: saveLanguage,
+  ai: saveAiConfig,
+  caption: submitCaption,
+  visible: setCaptionVisible,
+  open: openPath,
+  admin: requestAdmin,
+  audio(id, base64) {
+    const buffer = Buffer.from(base64, 'base64');
+    if (buffer.length > 40000 || buffer.length % 4) return { ok: false };
+    const samples = new Float32Array(buffer.length / 4);
+    for (let i = 0; i < samples.length; i++) samples[i] = buffer.readFloatLE(i * 4);
+    sendSpeechAudio(id, samples);
+    return { ok: true };
+  },
+  focus() { return { ok: true }; },
+  state() { return { recognition: Boolean(recognition), visible: captionVisible }; }
+};
+
+ipcMain.handle('runtime-info', runtimeInfo);
+ipcMain.handle('speech-model-download', downloadModel);
+ipcMain.handle('speech-start', (_event, sampleRate) => startSpeech(sampleRate));
+ipcMain.on('speech-audio', (event, id, samples) => {
+  if (event.sender === mainWindow?.webContents) sendSpeechAudio(id, samples);
 });
+ipcMain.handle('speech-stop', (_event, id) => stopSpeech(id));
+ipcMain.handle('set-config', (_event, settings) => saveSettings(settings));
+ipcMain.handle('set-language', (_event, language) => saveLanguage(language));
+ipcMain.handle('set-ai-config', (_event, next) => saveAiConfig(next));
+ipcMain.handle('submit-caption', (_event, value) => submitCaption(value));
+ipcMain.handle('set-caption-visible', (_event, visible) => setCaptionVisible(visible));
+ipcMain.handle('open-path', (_event, target) => openPath(target));
+ipcMain.handle('request-admin', requestAdmin);

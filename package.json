@@ -9,15 +9,16 @@
   "private": true,
   "scripts": {
     "build:engine": "cargo build --manifest-path rust/Cargo.toml --release",
+    "build:ui": "node scripts/build-ui.cjs",
     "test:app": "node --test tests/*.test.cjs",
     "test:engine": "cargo test --manifest-path rust/Cargo.toml",
-    "start": "npm run build:engine && electron .",
-    "dev": "npm run build:engine && electron .",
-    "pack": "npm run build:engine && electron-builder --dir",
-    "dist:setup": "npm run build:engine && electron-builder --win nsis --x64",
-    "dist:windows": "npm run build:engine && electron-builder --win nsis portable --x64",
+    "start": "npm run build:engine && npm run build:ui && electron .",
+    "dev": "npm run build:engine && npm run build:ui && electron .",
+    "pack": "npm run build:engine && npm run build:ui && electron-builder --dir",
+    "dist:setup": "npm run build:engine && npm run build:ui && node scripts/build-windows-setup.cjs",
+    "dist:windows": "npm run dist:setup",
     "dist:linux": "npm run build:engine && electron-builder --linux AppImage deb --x64",
-    "dist": "npm run build:engine && electron-builder"
+    "dist": "npm run build:engine && npm run build:ui && electron-builder"
   },
   "devDependencies": {
     "electron": "^33.2.1",
@@ -36,11 +37,23 @@
       "src/**/*",
       "package.json"
     ],
-    "asarUnpack": ["node_modules/sherpa-onnx-*/**"],
+    "asarUnpack": [
+      "node_modules/sherpa-onnx-*/**"
+    ],
     "win": {
       "extraResources": [
-        { "from": "rust/target/release/typesub-engine.exe", "to": "typesub-engine.exe" },
-        { "from": "rust/target/release/typesub-elevate.exe", "to": "typesub-elevate.exe" }
+        {
+          "from": "rust/target/release/typesub-engine.exe",
+          "to": "typesub-engine.exe"
+        },
+        {
+          "from": "rust/target/release/typesub-elevate.exe",
+          "to": "typesub-elevate.exe"
+        },
+        {
+          "from": "windows/publish",
+          "to": "winui"
+        }
       ],
       "signAndEditExecutable": false,
       "target": [
@@ -55,14 +68,23 @@
         "NSMicrophoneUsageDescription": "TypeSub uses the microphone to generate live captions on this computer."
       },
       "extraResources": [
-        { "from": "rust/target/release/typesub-engine", "to": "typesub-engine" }
+        {
+          "from": "rust/target/release/typesub-engine",
+          "to": "typesub-engine"
+        }
       ]
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "AudioVideo",
       "extraResources": [
-        { "from": "rust/target/release/typesub-engine", "to": "typesub-engine" }
+        {
+          "from": "rust/target/release/typesub-engine",
+          "to": "typesub-engine"
+        }
       ]
     },
     "appImage": {
@@ -99,6 +121,10 @@
     }
   },
   "dependencies": {
+    "@primno/dpapi": "^2.0.1",
     "sherpa-onnx-node": "2.0.2"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
   }
 }

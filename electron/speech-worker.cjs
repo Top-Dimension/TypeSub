@@ -43,6 +43,13 @@ if (process.parentPort) {
     process.parentPort.postMessage({ type: 'drain' });
   });
   process.parentPort.postMessage({ type: 'ready' });
+} else if (process.send) {
+  const accept = createRecognizer(process.argv[2], (event) => process.send(event));
+  process.on('message', ({ samples, sampleRate }) => {
+    accept(samples, sampleRate);
+    process.send({ type: 'drain' });
+  });
+  process.send({ type: 'ready' });
 }
 
 module.exports = { createRecognizer };

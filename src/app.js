@@ -287,7 +287,7 @@ function setRecognition(status, label, detail) {
 
 function demoText() {
   closeMicrophone();
-  const text = '欢迎来到 TypeSub，字幕正在逐个出现。';
+  const text = t('欢迎来到 TypeSub，字幕正在逐个出现。');
   $('test-caption').value = text;
   setRecognition('demo', '示例字幕', '正在播放示例');
   window.typeSub.submitCaption(text);
@@ -392,6 +392,10 @@ function applyPreset(name) {
 }
 
 function wireEvents() {
+  qa('[data-language-select]').forEach((select) => select.addEventListener('change', async (event) => {
+    setLanguage(event.target.value);
+    await window.typeSub.saveLanguage(event.target.value);
+  }));
   $('copy-obs-url').addEventListener('click', () => {
     window.typeSub.copyText($('obs-url').value);
     showToast('OBS URL 已复制');
@@ -460,7 +464,7 @@ function wireEvents() {
       runtime: state.runtime ? { elevated: state.runtime.elevated, dataDir: state.runtime.dataDir } : {},
       speechModel: state.speechModel,
       settings: { ...state.settings, microphoneId: undefined },
-      privacy: '此诊断信息不包含音频和字幕内容'
+      privacy: t('此诊断信息不包含音频和字幕内容')
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -528,6 +532,7 @@ async function bootstrap() {
   bindControlsFromState();
   renderCaption();
   const runtime = await window.typeSub.getRuntime();
+  setLanguage(runtime.config?.language);
   state.runtime = runtime;
   state.settings = { ...DEFAULT_SETTINGS, ...(runtime.config?.settings || {}) };
   $('obs-url').value = runtime.overlayUrl || '';
