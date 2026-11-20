@@ -3,7 +3,7 @@
 [英文](README.md) | 中文
 
 <p align="center">
-  <img src="logo.png" alt="TypeSub Logo" width="300">
+  <img src="LOGO.png" alt="TypeSub Logo" width="300">
 </p>
 
 > 软件正在开发初期,以下下载的是Pre-release版本
