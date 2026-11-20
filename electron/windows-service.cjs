@@ -19,7 +19,7 @@ const enginePath = process.env.TYPESUB_ENGINE || path.join(root, 'rust', 'target
 const elevationPath = process.env.TYPESUB_ELEVATE || path.join(root, 'rust', 'target', 'release', 'typesub-elevate.exe');
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const dpapi = require('@primno/dpapi');
-const speechModel = createSpeechModel(path.join(dataDir, 'models'), globalThis.fetch, process.env.TYPESUB_BUNDLED_MODELS);
+const speechModel = createSpeechModel(path.join(dataDir, 'models'), globalThis.fetch, process.env.TYPESUB_LEGACY_MODELS);
 const runFile = promisify(execFile);
 let engineProcess;
 let recognition;
@@ -137,11 +137,12 @@ function applyCaptionSettings(settings) {
 async function startRecognition(sampleRate) {
   if (!engineProcess?.stdin?.writable) return { ok: false, message: '字幕引擎未启动，请重新启动 TypeSub。' };
   if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 96000) return { ok: false, message: '麦克风采样率不受支持。' };
-  if (!await speechModel.installed()) return { ok: false, message: '请先下载语音模型。' };
+  const modelDirectory = await speechModel.installedDirectory();
+  if (!modelDirectory) return { ok: false, message: '请先下载语音模型。' };
   if (recognition) return { ok: false, message: '语音识别已在运行。' };
   const nativeDir = path.dirname(require.resolve('sherpa-onnx-win-x64/package.json'));
   const env = { ...process.env, PATH: [nativeDir, process.env.PATH].filter(Boolean).join(path.delimiter) };
-  const child = fork(path.join(__dirname, 'speech-worker.cjs'), [speechModel.directory], {
+  const child = fork(path.join(__dirname, 'speech-worker.cjs'), [modelDirectory], {
     execPath: nodePath,
     env,
     serialization: 'advanced',

@@ -1,8 +1,6 @@
 const { execFileSync } = require('node:child_process');
-const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { MODEL, FILES, RELEASE } = require('../electron/speech-model.cjs');
 const { version } = require('../package.json');
 
 const root = path.resolve(__dirname, '..');
@@ -36,18 +34,6 @@ function findCrt() {
   return crt;
 }
 
-function stageModel(runtime) {
-  const name = `${MODEL.id}.tar.bz2`;
-  const archive = download(name, RELEASE + name);
-  if (fs.statSync(archive).size !== MODEL.bytes ||
-      createHash('sha256').update(fs.readFileSync(archive)).digest('hex') !== MODEL.sha256) {
-    throw new Error(`Speech model verification failed. Remove ${archive} and build again.`);
-  }
-  const models = path.join(runtime, 'models');
-  fs.mkdirSync(models, { recursive: true });
-  run('tar.exe', ['-xf', archive, '-C', models, ...[...FILES, 'README.md'].map(file => `${MODEL.id}/${file}`)]);
-}
-
 function copy(source, target) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.cpSync(source, target, { recursive: true });
@@ -69,7 +55,7 @@ function build() {
   fs.mkdirSync(cache, { recursive: true });
   const stage = fs.mkdtempSync(path.join(cache, 'stage-'));
   try {
-    console.log('Staging TypeSub WinUI, runtime, and offline speech model...');
+    console.log('Staging TypeSub WinUI and runtime...');
     copy(publish, stage);
     const runtime = path.join(stage, 'runtime');
     for (const exe of ['typesub-engine.exe', 'typesub-elevate.exe']) {
@@ -90,7 +76,6 @@ function build() {
     for (const name of ['@primno/dpapi', 'node-gyp-build', 'sherpa-onnx-node', 'sherpa-onnx-win-x64']) {
       copy(path.join(root, 'node_modules', name), path.join(runtime, 'node_modules', name));
     }
-    stageModel(runtime);
     copy(path.join(root, 'LICENSE'), path.join(stage, 'licenses', 'TypeSub.txt'));
     copy(download(`node-${process.version}-LICENSE.txt`, `https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`), path.join(stage, 'licenses', 'Node.js.txt'));
     copy(download('sherpa-onnx-LICENSE.txt', 'https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/master/LICENSE'), path.join(stage, 'licenses', 'sherpa-onnx.txt'));

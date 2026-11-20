@@ -145,7 +145,8 @@ async function startRecognition(sampleRate) {
   if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 96000) {
     return { ok: false, message: '麦克风采样率不受支持。' };
   }
-  if (!await speechModel.installed()) return { ok: false, message: '请先下载语音模型。' };
+  const modelDirectory = await speechModel.installedDirectory();
+  if (!modelDirectory) return { ok: false, message: '请先下载语音模型。' };
   if (recognition) return { ok: false, message: '语音识别已在运行。' };
   const platform = isWindows ? 'win' : process.platform;
   let nativeDir;
@@ -158,7 +159,7 @@ async function startRecognition(sampleRate) {
   const env = { ...process.env };
   const libraryPath = isWindows ? 'PATH' : process.platform === 'darwin' ? 'DYLD_LIBRARY_PATH' : 'LD_LIBRARY_PATH';
   env[libraryPath] = [nativeDir, env[libraryPath]].filter(Boolean).join(path.delimiter);
-  const child = utilityProcess.fork(path.join(__dirname, 'speech-worker.cjs'), [speechModel.directory], {
+  const child = utilityProcess.fork(path.join(__dirname, 'speech-worker.cjs'), [modelDirectory], {
     env, serviceName: 'TypeSub Speech Recognition', stdio: 'pipe'
   });
   captions.clear();

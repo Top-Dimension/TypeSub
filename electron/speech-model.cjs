@@ -16,15 +16,16 @@ const MODEL = {
 const FILES = ['encoder.int8.onnx', 'decoder.onnx', 'joiner.int8.onnx', 'tokens.txt'];
 const RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/';
 
-function createSpeechModel(root, fetch = globalThis.fetch, bundledRoot) {
-  const directory = path.join(bundledRoot || root, MODEL.id);
+function createSpeechModel(root, fetch = globalThis.fetch, legacyRoot) {
+  const directory = path.join(root, MODEL.id);
+  const legacyDirectory = legacyRoot && path.join(legacyRoot, MODEL.id);
   let controller;
   let job;
   let progress = null;
 
-  async function installed() {
+  async function hasModelFiles(modelDirectory) {
     try {
-      const files = await Promise.all(FILES.map((name) => fs.stat(path.join(directory, name))));
+      const files = await Promise.all(FILES.map((name) => fs.stat(path.join(modelDirectory, name))));
       return files.every((file) => file.isFile() && file.size > 0);
     } catch (error) {
       if (error.code === 'ENOENT') return false;
@@ -32,9 +33,13 @@ function createSpeechModel(root, fetch = globalThis.fetch, bundledRoot) {
     }
   }
 
+  async function installedDirectory() {
+    if (await hasModelFiles(directory)) return directory;
+    if (legacyDirectory && await hasModelFiles(legacyDirectory)) return legacyDirectory;
+  }
+
   async function download(onProgress) {
-    if (await installed()) return;
-    if (bundledRoot) throw new Error('The bundled speech model is missing. Reinstall TypeSub to restore it.');
+    if (await installedDirectory()) return;
     if (job) return job;
     controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10 * 60 * 1000)]);
@@ -72,7 +77,7 @@ function createSpeechModel(root, fetch = globalThis.fetch, bundledRoot) {
           ...FILES.map((name) => MODEL.id + '/' + name)
         ], { signal, windowsHide: true });
         signal.throwIfAborted();
-        if (await installed()) return;
+        if (await installedDirectory()) return;
         await fs.rm(directory, { recursive: true, force: true });
         await fs.rename(unpacked, directory);
       } finally {
@@ -87,14 +92,13 @@ function createSpeechModel(root, fetch = globalThis.fetch, bundledRoot) {
   }
 
   return {
-    directory,
-    installed,
+    installedDirectory,
     download,
     cancel() {
       controller?.abort();
       return job;
     },
-    status: async () => ({ name: MODEL.name, bytes: MODEL.bytes, installed: await installed(), progress })
+    status: async () => ({ name: MODEL.name, bytes: MODEL.bytes, installed: Boolean(await installedDirectory()), progress })
   };
 }
 

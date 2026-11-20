@@ -50,7 +50,7 @@ public partial class App : Application
                 RedirectStandardError = true
             };
             start.Environment["TYPESUB_ROOT"] = appRoot;
-            if (bundledRuntime) start.Environment["TYPESUB_BUNDLED_MODELS"] = Path.Combine(appRoot, "models");
+            if (bundledRuntime) start.Environment["TYPESUB_LEGACY_MODELS"] = Path.Combine(appRoot, "models");
             var engine = Path.Combine(AppContext.BaseDirectory, "typesub-engine.exe");
             if (!File.Exists(engine)) engine = Path.Combine(appRoot, "rust", "target", "release", "typesub-engine.exe");
             start.Environment["TYPESUB_ENGINE"] = engine;

@@ -3,7 +3,7 @@
 English | [Chinese](README.zh-CN.md)
 
 <p align="center">
-  <img src="logo.png" alt="TypeSub Logo" width="300">
+  <img src="LOGO.png" alt="TypeSub Logo" width="300">
 </p>
 
 > TypeSub is in early development. The downloads below are pre-release builds.
@@ -41,13 +41,13 @@ npm start
 
 `npm start` builds the Rust engine and the Windows WinUI interface when running on Windows. It then opens WinUI on Windows or Electron on Linux. Keep TypeSub running on the same PC as OBS. Copy the URL from the studio, add a **Browser** source in OBS, and paste the URL into the source properties. Set the source's **Width** and **Height** to the area you want to use. Captions reflow to the source dimensions and advance by complete lines or columns as they fill the available space.
 
-The Windows installer includes the Zipformer model for Mandarin and English. When running from source or on Linux, click **Download model (134 MB)** on first launch or under Input. Choose a microphone under **Input → Microphone** and click **Start recognition** to transcribe offline. Pause recognition to switch devices, and click **Refresh devices** if your microphone is missing from the list. Click **Try it** to check the overlay with sample text.
+If TypeSub cannot find a local model, click **Download model (134 MB)** under **Input** to download the Zipformer model for Mandarin and English. On Windows, the same button is available under **Components**. Choose a microphone under **Input → Microphone** and click **Start recognition** to transcribe offline. Pause recognition to switch devices, and click **Refresh devices** if your microphone is missing from the list. Click **Try it** to check the overlay with sample text.
 
 Run `npm run dist:linux` on Linux x64 to build the AppImage and Debian package in `release/`. On Ubuntu or Debian, install `typesub_<version>_amd64.deb` with `sudo apt install ./release/typesub_<version>_amd64.deb`, substituting the release version. The package configures Electron's sandbox for systems that restrict unprivileged user namespaces.
 
 To use the AppImage, make it executable with `chmod +x` and launch it as a regular user. If FUSE is unavailable, launch it with `--appimage-extract-and-run`. Installing the speech model requires `tar` with bzip2 support. Use the Debian package if Ubuntu reports a Chromium sandbox error when launching the AppImage.
 
-On Windows x64, install Inno Setup 6 and run `npm run dist:windows` to build `release/TypeSub-Setup-<version>-x64.exe`. The WinUI 3 installer includes the offline speech model and the WebView2 Runtime installer.
+On Windows x64, install Inno Setup 6 and run `npm run dist:windows` to build `release/TypeSub-Setup-<version>-x64.exe`. The WinUI 3 installer includes the WebView2 Runtime installer. Download the speech model from TypeSub after installation if needed.
 
 On macOS, run `npm run dist` to build a DMG. Each native build command compiles the Rust engine for its target platform.
 
